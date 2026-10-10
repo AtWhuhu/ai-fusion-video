@@ -294,6 +294,7 @@ export function FrameReferenceSection({
           previewHeight="h-96"
           previewContainerClassName="mx-auto w-[360px] max-w-full bg-muted/20"
           previewImageClassName="object-contain"
+          projectId={project?.id}
           onPreviewClick={
             imageUrl && onPreviewImage
               ? () => onPreviewImage(imageUrl, `${label}参考图`)

@@ -8,6 +8,7 @@ import { resolveMediaUrl } from "@/lib/api/client";
 import { uploadFile } from "@/lib/api/storage";
 import { getApiErrorMessage } from "@/lib/api/api-error";
 import { cn } from "@/lib/utils";
+import { AssetImagePickerDialog } from "./asset-image-picker-dialog";
 
 interface ImageInputProps {
   value: string;
@@ -21,10 +22,12 @@ interface ImageInputProps {
   placeholder?: string;
   uploadSubDir?: string;
   beforeUpload?: () => boolean | Promise<boolean>;
+  /** 项目 ID；传入后显示"资产库"选项卡，可从项目资产中选图 */
+  projectId?: number;
 }
 
 /**
- * 图片输入组件：支持 URL 填写 / 本地文件上传 切换
+ * 图片输入组件：支持 本地文件上传 / URL 填写 / 资产库选择 切换
  */
 export default function ImageInput({
   value,
@@ -37,9 +40,11 @@ export default function ImageInput({
   placeholder = "粘贴图片链接...",
   uploadSubDir = "images",
   beforeUpload,
+  projectId,
 }: ImageInputProps) {
   const [mode, setMode] = useState<"url" | "upload">("upload");
   const [uploading, setUploading] = useState(false);
+  const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleUpload = async (file: File) => {
@@ -77,6 +82,11 @@ export default function ImageInput({
   const handleClear = () => {
     onChange("");
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const openAssetPicker = async () => {
+    if (beforeUpload && !(await beforeUpload())) return;
+    setAssetPickerOpen(true);
   };
 
   const commitUrl = (rawUrl: string) => {
@@ -124,6 +134,16 @@ export default function ImageInput({
           <Link className="h-2.5 w-2.5" />
           链接
         </button>
+        {projectId != null && (
+          <button
+            type="button"
+            onClick={() => void openAssetPicker()}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium transition-all text-muted-foreground/60 hover:text-muted-foreground"
+          >
+            <Images className="h-2.5 w-2.5" />
+            资产库
+          </button>
+        )}
       </div>
 
       {/* 预览区 / 拖拽区 */}
@@ -212,6 +232,16 @@ export default function ImageInput({
           }}
           placeholder={placeholder}
           className="h-7 text-xs"
+        />
+      )}
+
+      {/* 资产库选择弹窗 */}
+      {projectId != null && (
+        <AssetImagePickerDialog
+          open={assetPickerOpen}
+          onOpenChange={setAssetPickerOpen}
+          projectId={projectId}
+          onSelect={(url) => onChange(url)}
         />
       )}
     </div>
