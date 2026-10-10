@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -253,7 +254,7 @@ public class AgentUserMcpRuntimeRegistry implements DisposableBean {
             McpClientWrapper client,
             AgentMcpServerService.AgentScopeV2ServerConfig config) {
         List<McpSchema.Tool> tools = client.initialize()
-                .then(client.listTools())
+                .then(Mono.defer(client::listTools))
                 .block(config.initializationTimeout().plus(config.timeout()));
         if (tools == null) {
             throw new IllegalStateException("MCP 服务没有返回工具列表");
