@@ -326,6 +326,7 @@ export default function ProjectAssetsPage() {
                     item={creatingItem ? null : selectedItem}
                     assetType={selectedAsset.type}
                     saving={saving}
+                    projectId={projectId}
                     onCreate={createItem}
                     onSave={saveItem}
                     onDelete={() => {

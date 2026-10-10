@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  Brush,
   Check,
   ImagePlus,
   Images,
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { AssetImageEditDialog } from "@/components/dashboard/asset-image-edit-dialog";
 import { getAppearance, getAppearanceHints } from "./asset-types";
 
 interface AssetItemWorkspaceProps {
@@ -27,6 +29,7 @@ interface AssetItemWorkspaceProps {
   item: AssetItem | null;
   assetType: string;
   saving: boolean;
+  projectId?: number;
   onCreate: (
     name: string,
     appearance: string,
@@ -49,6 +52,7 @@ export function AssetItemWorkspace({
   item,
   assetType,
   saving,
+  projectId,
   onCreate,
   onSave,
   onDelete,
@@ -64,6 +68,7 @@ export function AssetItemWorkspace({
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const appearanceHints = useMemo(
@@ -212,7 +217,7 @@ export function AssetItemWorkspace({
 
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
 
-        <div className="mx-auto mt-3 grid w-full max-w-[480px] grid-cols-2 gap-2">
+        <div className="mx-auto mt-3 grid w-full max-w-[480px] grid-cols-3 gap-2">
           <Button
             size="sm"
             variant="outline"
@@ -225,6 +230,16 @@ export function AssetItemWorkspace({
               <Upload className="h-3.5 w-3.5" />
             )}
             {imageUrl ? "替换图片" : "上传图片"}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={uploading || !imageUrl}
+            title={imageUrl ? "以当前图片为参考进行 AI 改图" : "请先添加图片"}
+            onClick={() => setEditDialogOpen(true)}
+          >
+            <Brush className="h-3.5 w-3.5" />
+            AI 改图
           </Button>
           <Button
             size="sm"
@@ -244,6 +259,14 @@ export function AssetItemWorkspace({
                 : "生成图片"}
           </Button>
         </div>
+        <AssetImageEditDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          projectId={projectId}
+          sourceImageUrl={imageUrl}
+          assetName={name || undefined}
+          onApply={(url) => setImageUrl(url)}
+        />
         <input
           ref={inputRef}
           hidden
