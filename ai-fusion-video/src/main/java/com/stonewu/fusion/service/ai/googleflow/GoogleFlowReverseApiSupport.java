@@ -49,21 +49,70 @@ public final class GoogleFlowReverseApiSupport {
             Map.entry("3:4", "three-four")
     );
 
+    /**
+     * Flow2API 上游别名镜像表（对应 flow2api 的 core/model_resolver.py → VIDEO_BASE_MODELS）。
+     * <p>
+     * 上游只认带方向后缀的完整模型名；若下发不带方向的基础名，上游会按默认横屏渲染。
+     * 因此这里必须覆盖预设与自建的全部模型 code（含时长 / 分辨率后缀变体），
+     * 逐条给出 landscape / portrait 的完整别名，避免方向在链路上丢失。
+     */
     private static final Map<String, Map<String, String>> VIDEO_BASE_MODELS = Map.ofEntries(
-            Map.entry("veo_3_1_t2v_fast", Map.of("landscape", "veo_3_1_t2v_fast_landscape", "portrait", "veo_3_1_t2v_fast_portrait")),
-            Map.entry("veo_3_1_t2v_fast_ultra", Map.of("landscape", "veo_3_1_t2v_fast_ultra_landscape", "portrait", "veo_3_1_t2v_fast_portrait_ultra")),
-            Map.entry("veo_3_1_t2v_fast_ultra_relaxed", Map.of("landscape", "veo_3_1_t2v_fast_ultra_relaxed_landscape", "portrait", "veo_3_1_t2v_fast_portrait_ultra_relaxed")),
-            Map.entry("veo_3_1_t2v", Map.of("landscape", "veo_3_1_t2v_landscape", "portrait", "veo_3_1_t2v_portrait")),
-            Map.entry("veo_3_1_t2v_lite", Map.of("landscape", "veo_3_1_t2v_lite_landscape", "portrait", "veo_3_1_t2v_lite_portrait")),
+            Map.entry("omni", Map.of("landscape", "omni", "portrait", "omni_portrait")),
+            Map.entry("veo_3_1_extend", Map.of("landscape", "veo_3_1_extend", "portrait", "veo_3_1_extend_portrait")),
+            Map.entry("veo_3_1_i2v_lite", Map.of("landscape", "veo_3_1_i2v_lite_landscape", "portrait", "veo_3_1_i2v_lite_portrait")),
+            Map.entry("veo_3_1_i2v_lite_4s", Map.of("landscape", "veo_3_1_i2v_lite_4s_landscape", "portrait", "veo_3_1_i2v_lite_4s_portrait")),
+            Map.entry("veo_3_1_i2v_lite_6s", Map.of("landscape", "veo_3_1_i2v_lite_6s_landscape", "portrait", "veo_3_1_i2v_lite_6s_portrait")),
+            Map.entry("veo_3_1_i2v_lite_8s", Map.of("landscape", "veo_3_1_i2v_lite_8s_landscape", "portrait", "veo_3_1_i2v_lite_8s_portrait")),
+            Map.entry("veo_3_1_i2v_s", Map.of("landscape", "veo_3_1_i2v_s_landscape", "portrait", "veo_3_1_i2v_s_portrait")),
+            Map.entry("veo_3_1_i2v_s_1080p", Map.of("landscape", "veo_3_1_i2v_s_1080p", "portrait", "veo_3_1_i2v_s_portrait_1080p")),
+            Map.entry("veo_3_1_i2v_s_4k", Map.of("landscape", "veo_3_1_i2v_s_4k", "portrait", "veo_3_1_i2v_s_portrait_4k")),
+            Map.entry("veo_3_1_i2v_s_4s", Map.of("landscape", "veo_3_1_i2v_s_4s", "portrait", "veo_3_1_i2v_s_portrait_4s")),
+            Map.entry("veo_3_1_i2v_s_4s_1080p", Map.of("landscape", "veo_3_1_i2v_s_4s_1080p", "portrait", "veo_3_1_i2v_s_portrait_4s_1080p")),
+            Map.entry("veo_3_1_i2v_s_4s_4k", Map.of("landscape", "veo_3_1_i2v_s_4s_4k", "portrait", "veo_3_1_i2v_s_portrait_4s_4k")),
+            Map.entry("veo_3_1_i2v_s_6s", Map.of("landscape", "veo_3_1_i2v_s_6s", "portrait", "veo_3_1_i2v_s_portrait_6s")),
+            Map.entry("veo_3_1_i2v_s_6s_1080p", Map.of("landscape", "veo_3_1_i2v_s_6s_1080p", "portrait", "veo_3_1_i2v_s_portrait_6s_1080p")),
+            Map.entry("veo_3_1_i2v_s_6s_4k", Map.of("landscape", "veo_3_1_i2v_s_6s_4k", "portrait", "veo_3_1_i2v_s_portrait_6s_4k")),
+            Map.entry("veo_3_1_i2v_s_8s", Map.of("landscape", "veo_3_1_i2v_s_8s", "portrait", "veo_3_1_i2v_s_portrait_8s")),
+            Map.entry("veo_3_1_i2v_s_8s_1080p", Map.of("landscape", "veo_3_1_i2v_s_8s_1080p", "portrait", "veo_3_1_i2v_s_portrait_8s_1080p")),
+            Map.entry("veo_3_1_i2v_s_8s_4k", Map.of("landscape", "veo_3_1_i2v_s_8s_4k", "portrait", "veo_3_1_i2v_s_portrait_8s_4k")),
+            Map.entry("veo_3_1_i2v_s_fast_4s_fl", Map.of("landscape", "veo_3_1_i2v_s_fast_4s_fl", "portrait", "veo_3_1_i2v_s_fast_portrait_4s_fl")),
+            Map.entry("veo_3_1_i2v_s_fast_6s_fl", Map.of("landscape", "veo_3_1_i2v_s_fast_6s_fl", "portrait", "veo_3_1_i2v_s_fast_portrait_6s_fl")),
+            Map.entry("veo_3_1_i2v_s_fast_8s_fl", Map.of("landscape", "veo_3_1_i2v_s_fast_8s_fl", "portrait", "veo_3_1_i2v_s_fast_portrait_8s_fl")),
             Map.entry("veo_3_1_i2v_s_fast_fl", Map.of("landscape", "veo_3_1_i2v_s_fast_fl", "portrait", "veo_3_1_i2v_s_fast_portrait_fl")),
             Map.entry("veo_3_1_i2v_s_fast_ultra_fl", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_fl", "portrait", "veo_3_1_i2v_s_fast_portrait_ultra_fl")),
             Map.entry("veo_3_1_i2v_s_fast_ultra_relaxed", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_relaxed", "portrait", "veo_3_1_i2v_s_fast_portrait_ultra_relaxed")),
-            Map.entry("veo_3_1_i2v_s", Map.of("landscape", "veo_3_1_i2v_s", "portrait", "veo_3_1_i2v_s_portrait")),
-            Map.entry("veo_3_1_i2v_lite", Map.of("landscape", "veo_3_1_i2v_lite", "portrait", "veo_3_1_i2v_lite_portrait")),
-            Map.entry("veo_3_1_interpolation_lite", Map.of("landscape", "veo_3_1_interpolation_lite", "portrait", "veo_3_1_interpolation_lite_portrait")),
+            Map.entry("veo_3_1_interpolation_lite", Map.of("landscape", "veo_3_1_interpolation_lite_landscape", "portrait", "veo_3_1_interpolation_lite_portrait")),
+            Map.entry("veo_3_1_interpolation_lite_4s", Map.of("landscape", "veo_3_1_interpolation_lite_4s_landscape", "portrait", "veo_3_1_interpolation_lite_4s_portrait")),
+            Map.entry("veo_3_1_interpolation_lite_6s", Map.of("landscape", "veo_3_1_interpolation_lite_6s_landscape", "portrait", "veo_3_1_interpolation_lite_6s_portrait")),
+            Map.entry("veo_3_1_interpolation_lite_8s", Map.of("landscape", "veo_3_1_interpolation_lite_8s_landscape", "portrait", "veo_3_1_interpolation_lite_8s_portrait")),
             Map.entry("veo_3_1_r2v_fast", Map.of("landscape", "veo_3_1_r2v_fast", "portrait", "veo_3_1_r2v_fast_portrait")),
+            Map.entry("veo_3_1_r2v_fast_8s", Map.of("landscape", "veo_3_1_r2v_fast_8s", "portrait", "veo_3_1_r2v_fast_portrait_8s")),
             Map.entry("veo_3_1_r2v_fast_ultra", Map.of("landscape", "veo_3_1_r2v_fast_ultra", "portrait", "veo_3_1_r2v_fast_portrait_ultra")),
-            Map.entry("veo_3_1_r2v_fast_ultra_relaxed", Map.of("landscape", "veo_3_1_r2v_fast_ultra_relaxed", "portrait", "veo_3_1_r2v_fast_portrait_ultra_relaxed"))
+            Map.entry("veo_3_1_r2v_fast_ultra_8s", Map.of("landscape", "veo_3_1_r2v_fast_ultra_8s", "portrait", "veo_3_1_r2v_fast_portrait_ultra_8s")),
+            Map.entry("veo_3_1_r2v_fast_ultra_relaxed", Map.of("landscape", "veo_3_1_r2v_fast_ultra_relaxed", "portrait", "veo_3_1_r2v_fast_portrait_ultra_relaxed")),
+            Map.entry("veo_3_1_r2v_fast_ultra_relaxed_8s", Map.of("landscape", "veo_3_1_r2v_fast_ultra_relaxed_8s", "portrait", "veo_3_1_r2v_fast_portrait_ultra_relaxed_8s")),
+            Map.entry("veo_3_1_t2v", Map.of("landscape", "veo_3_1_t2v_landscape", "portrait", "veo_3_1_t2v_portrait")),
+            Map.entry("veo_3_1_t2v_1080p", Map.of("landscape", "veo_3_1_t2v_1080p", "portrait", "veo_3_1_t2v_portrait_1080p")),
+            Map.entry("veo_3_1_t2v_4k", Map.of("landscape", "veo_3_1_t2v_4k", "portrait", "veo_3_1_t2v_portrait_4k")),
+            Map.entry("veo_3_1_t2v_4s", Map.of("landscape", "veo_3_1_t2v_4s", "portrait", "veo_3_1_t2v_portrait_4s")),
+            Map.entry("veo_3_1_t2v_4s_1080p", Map.of("landscape", "veo_3_1_t2v_4s_1080p", "portrait", "veo_3_1_t2v_portrait_4s_1080p")),
+            Map.entry("veo_3_1_t2v_4s_4k", Map.of("landscape", "veo_3_1_t2v_4s_4k", "portrait", "veo_3_1_t2v_portrait_4s_4k")),
+            Map.entry("veo_3_1_t2v_6s", Map.of("landscape", "veo_3_1_t2v_6s", "portrait", "veo_3_1_t2v_portrait_6s")),
+            Map.entry("veo_3_1_t2v_6s_1080p", Map.of("landscape", "veo_3_1_t2v_6s_1080p", "portrait", "veo_3_1_t2v_portrait_6s_1080p")),
+            Map.entry("veo_3_1_t2v_6s_4k", Map.of("landscape", "veo_3_1_t2v_6s_4k", "portrait", "veo_3_1_t2v_portrait_6s_4k")),
+            Map.entry("veo_3_1_t2v_8s", Map.of("landscape", "veo_3_1_t2v_8s", "portrait", "veo_3_1_t2v_portrait_8s")),
+            Map.entry("veo_3_1_t2v_8s_1080p", Map.of("landscape", "veo_3_1_t2v_8s_1080p", "portrait", "veo_3_1_t2v_portrait_8s_1080p")),
+            Map.entry("veo_3_1_t2v_8s_4k", Map.of("landscape", "veo_3_1_t2v_8s_4k", "portrait", "veo_3_1_t2v_portrait_8s_4k")),
+            Map.entry("veo_3_1_t2v_fast", Map.of("landscape", "veo_3_1_t2v_fast_landscape", "portrait", "veo_3_1_t2v_fast_portrait")),
+            Map.entry("veo_3_1_t2v_fast_4s", Map.of("landscape", "veo_3_1_t2v_fast_4s", "portrait", "veo_3_1_t2v_fast_portrait_4s")),
+            Map.entry("veo_3_1_t2v_fast_6s", Map.of("landscape", "veo_3_1_t2v_fast_6s", "portrait", "veo_3_1_t2v_fast_portrait_6s")),
+            Map.entry("veo_3_1_t2v_fast_8s", Map.of("landscape", "veo_3_1_t2v_fast_8s", "portrait", "veo_3_1_t2v_fast_portrait_8s")),
+            Map.entry("veo_3_1_t2v_fast_ultra", Map.of("landscape", "veo_3_1_t2v_fast_ultra", "portrait", "veo_3_1_t2v_fast_portrait_ultra")),
+            Map.entry("veo_3_1_t2v_fast_ultra_relaxed", Map.of("landscape", "veo_3_1_t2v_fast_ultra_relaxed", "portrait", "veo_3_1_t2v_fast_portrait_ultra_relaxed")),
+            Map.entry("veo_3_1_t2v_lite", Map.of("landscape", "veo_3_1_t2v_lite_landscape", "portrait", "veo_3_1_t2v_lite_portrait")),
+            Map.entry("veo_3_1_t2v_lite_4s", Map.of("landscape", "veo_3_1_t2v_lite_4s_landscape", "portrait", "veo_3_1_t2v_lite_4s_portrait")),
+            Map.entry("veo_3_1_t2v_lite_6s", Map.of("landscape", "veo_3_1_t2v_lite_6s_landscape", "portrait", "veo_3_1_t2v_lite_6s_portrait")),
+            Map.entry("veo_3_1_t2v_lite_8s", Map.of("landscape", "veo_3_1_t2v_lite_8s_landscape", "portrait", "veo_3_1_t2v_lite_8s_portrait"))
     );
 
     private static final Map<String, Map<String, Map<String, String>>> VIDEO_UPSAMPLE_MODELS = Map.ofEntries(
@@ -198,16 +247,25 @@ public final class GoogleFlowReverseApiSupport {
     }
 
     public static String resolveVideoModelCode(String modelCode, String aspectRatio, String resolution) {
-        if (!VIDEO_BASE_MODELS.containsKey(modelCode)) {
+        String orientation = "9:16".equals(aspectRatio) ? "portrait" : "landscape";
+        Map<String, String> orientationMap = VIDEO_BASE_MODELS.get(modelCode);
+
+        if (orientationMap == null) {
             if (StrUtil.isNotBlank(resolution) && !modelCode.toLowerCase(Locale.ROOT).contains(resolution.toLowerCase(Locale.ROOT))) {
                 throw new BusinessException("模型 " + modelCode + " 不支持通过分辨率参数切换，请改用 GoogleFlowReverseApi 别名模型");
             }
             return modelCode;
         }
 
-        String orientation = "9:16".equals(aspectRatio) ? "portrait" : "landscape";
-        if (StrUtil.isBlank(resolution)) {
-            return VIDEO_BASE_MODELS.get(modelCode).get(orientation);
+        // 模型 code 自带分辨率档位（如 _1080p / _4k）时，方向别名已在上表中，无需再查放大表
+        boolean resolutionEmbedded = StrUtil.isNotBlank(resolution)
+                && modelCode.toLowerCase(Locale.ROOT).contains(resolution.toLowerCase(Locale.ROOT));
+        if (StrUtil.isBlank(resolution) || resolutionEmbedded) {
+            String resolved = orientationMap.get(orientation);
+            if (StrUtil.isBlank(resolved)) {
+                throw new BusinessException("模型 " + modelCode + " 不支持 " + aspectRatio + " 比例");
+            }
+            return resolved;
         }
 
         Map<String, Map<String, String>> resolutionMap = VIDEO_UPSAMPLE_MODELS.get(modelCode);
@@ -215,11 +273,11 @@ public final class GoogleFlowReverseApiSupport {
             throw new BusinessException("模型 " + modelCode + " 不支持 " + resolution + " 分辨率");
         }
 
-        Map<String, String> orientationMap = resolutionMap.get(resolution.toLowerCase(Locale.ROOT));
-        if (orientationMap == null || !orientationMap.containsKey(orientation)) {
+        Map<String, String> upsampleOrientationMap = resolutionMap.get(resolution.toLowerCase(Locale.ROOT));
+        if (upsampleOrientationMap == null || !upsampleOrientationMap.containsKey(orientation)) {
             throw new BusinessException("模型 " + modelCode + " 不支持 " + resolution + " / " + aspectRatio + " 组合");
         }
-        return orientationMap.get(orientation);
+        return upsampleOrientationMap.get(orientation);
     }
 
     public static int countVideoInputImages(VideoTask task) {

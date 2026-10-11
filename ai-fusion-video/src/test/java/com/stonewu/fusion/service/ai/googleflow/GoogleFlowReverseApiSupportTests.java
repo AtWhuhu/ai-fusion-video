@@ -100,6 +100,58 @@ class GoogleFlowReverseApiSupportTests {
     }
 
     @Test
+    void shouldResolveInterpolationLite8sToPortraitAlias() {
+        AiModel model = AiModel.builder()
+                .code("veo_3_1_interpolation_lite_8s")
+                .config("""
+                        {
+                          "supportedAspectRatios": ["16:9", "9:16"],
+                          "minImageInputs": 2,
+                          "maxImageInputs": 2
+                        }
+                        """)
+                .build();
+
+        VideoTask task = VideoTask.builder()
+                .ratio("9:16")
+                .firstFrameImageUrl("/media/images/first.png")
+                .lastFrameImageUrl("/media/images/last.png")
+                .build();
+
+        GoogleFlowReverseApiSupport.ResolvedVideoRequest request = GoogleFlowReverseApiSupport.resolveVideoRequest(model, task);
+
+        assertEquals("veo_3_1_interpolation_lite_8s_portrait", request.actualModelCode());
+        assertEquals("9:16", request.aspectRatio());
+        assertEquals(2, request.imageCount());
+    }
+
+    @Test
+    void shouldResolveDurationVariantWithEmbeddedResolution() {
+        AiModel model = AiModel.builder()
+                .code("veo_3_1_i2v_s_8s_1080p")
+                .config("""
+                        {
+                          "supportedResolutions": ["1080P"],
+                          "supportedAspectRatios": ["16:9", "9:16"],
+                          "minImageInputs": 1,
+                          "maxImageInputs": 1
+                        }
+                        """)
+                .build();
+
+        VideoTask task = VideoTask.builder()
+                .ratio("9:16")
+                .resolution("1080P")
+                .firstFrameImageUrl("/media/images/a.png")
+                .build();
+
+        GoogleFlowReverseApiSupport.ResolvedVideoRequest request = GoogleFlowReverseApiSupport.resolveVideoRequest(model, task);
+
+        assertEquals("veo_3_1_i2v_s_portrait_8s_1080p", request.actualModelCode());
+        assertEquals("1080P", request.resolution());
+    }
+
+    @Test
     void shouldExtractMediaUrlsFromFinalContent() {
         assertEquals(
                 "https://example.com/image.png",
