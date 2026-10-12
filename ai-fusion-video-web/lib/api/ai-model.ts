@@ -208,6 +208,7 @@ export const PLATFORM_OPTIONS = [
   { value: "anthropic", label: "Anthropic", description: "Claude 系列模型" },
   { value: "ollama", label: "Ollama", description: "本地部署的开源模型" },
   { value: "comfyui", label: "ComfyUI", description: "ComfyUI Native API；通过已发布工作流生成图片或视频" },
+  { value: "sonilo", label: "Sonilo", description: "按画面生成配乐 / 音效；启用后本集合成完成时自动配乐" },
 ] as const;
 
 /** 模型类型选项 */
@@ -246,6 +247,7 @@ export const PLATFORM_LABELS: Record<string, string> = {
   anthropic: "Anthropic",
   ollama: "Ollama",
   comfyui: "ComfyUI",
+  sonilo: "Sonilo",
 };
 
 // ========== API ==========

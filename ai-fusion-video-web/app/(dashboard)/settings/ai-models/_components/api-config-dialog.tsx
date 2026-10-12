@@ -152,6 +152,9 @@ export function ApiConfigDialog({ open, onOpenChange, editingConfig, onSaved }: 
     || (!!form.proxyPassword && !form.proxyUsername?.trim())
   ));
   const comfyUiInvalid = form.platform === "comfyui" && !form.apiUrl?.trim();
+  const soniloInvalid = form.platform === "sonilo" && !form.apiKey?.trim();
+  // ComfyUI / Sonilo 不走文本、图片、视频协议路由，协议选择器整体锁定
+  const protocolsLocked = form.platform === "comfyui" || form.platform === "sonilo";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -192,6 +195,17 @@ export function ApiConfigDialog({ open, onOpenChange, editingConfig, onSaved }: 
                     imageProtocol: "comfyui",
                     videoProtocol: "comfyui",
                     apiUrl: "http://localhost:8188",
+                    autoAppendV1Path: false,
+                  }));
+                }
+                if (platform === "sonilo") {
+                  setForm(previous => ({
+                    ...previous,
+                    platform,
+                    textProtocol: "",
+                    imageProtocol: "",
+                    videoProtocol: "",
+                    apiUrl: "",
                     autoAppendV1Path: false,
                   }));
                 }
@@ -300,7 +314,7 @@ export function ApiConfigDialog({ open, onOpenChange, editingConfig, onSaved }: 
                     <Select
                       value={form[item.key] || UNSET_PROTOCOL_VALUE}
                       onValueChange={value => updateField(item.key, value === UNSET_PROTOCOL_VALUE ? "" : String(value))}
-                      disabled={form.platform === "comfyui"}
+                      disabled={protocolsLocked}
                       items={[
                         { value: UNSET_PROTOCOL_VALUE, label: "未配置" },
                         ...options.map(option => ({ value: option.value, label: option.label })),
@@ -523,7 +537,7 @@ export function ApiConfigDialog({ open, onOpenChange, editingConfig, onSaved }: 
           <DialogClose render={<Button variant="outline" size="sm" />}>
             取消
           </DialogClose>
-          <Button size="sm" onClick={handleSave} disabled={saving || !form.name.trim() || proxyInvalid || comfyUiInvalid}>
+          <Button size="sm" onClick={handleSave} disabled={saving || !form.name.trim() || proxyInvalid || comfyUiInvalid || soniloInvalid}>
             {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
             {editingConfig ? "保存" : "创建"}
           </Button>

@@ -84,4 +84,50 @@ class ComfyUiWorkflowRendererTests {
                         "[{\"nodeId\":\"9\",\"mediaType\":\"image\",\"role\":\"primary\"}]")
                 .build();
     }
+
+    @Test
+    void redirectsUploadedImageOnlyToDirectLoadImageAndPreservesVersion() {
+        ComfyUiWorkflowVersion version = linkedVersion("LoadImage", 0);
+        ObjectNode result = renderer.render(2, version, Map.of("referenceImages", List.of("new.png")));
+        assertThat(result.at("/1/inputs/image").asText()).isEqualTo("new.png");
+        assertThat(result.at("/9/inputs/images").isArray()).isTrue();
+        assertThat(version.getApiWorkflowJson()).contains("old.png");
+    }
+
+    @Test
+    void rejectsProcessingNodeInsteadOfOverwritingItsImageTensor() {
+        assertThatThrownBy(() -> renderer.render(2, linkedVersion("ImageScale", 0),
+                Map.of("referenceImages", List.of("new.png"))))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("加载节点的文件输入");
+    }
+
+    @Test
+    void rejectsLoadImageMaskOutput() {
+        assertThatThrownBy(() -> renderer.render(2, linkedVersion("LoadImage", 1),
+                Map.of("referenceImages", List.of("new.png"))))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("IMAGE 输出");
+    }
+
+    @Test
+    void rejectsDifferentImagesBoundToTheSameLoader() {
+        ComfyUiWorkflowVersion version = linkedVersion("LoadImage", 0);
+        version.setInputBindingsJson("""
+                {"referenceImages":[
+                  {"nodeId":"1","inputName":"image","valueType":"uploaded_image","index":0},
+                  {"nodeId":"9","inputName":"images","valueType":"uploaded_image","index":1}
+                ]}
+                """);
+        assertThatThrownBy(() -> renderer.render(2, version,
+                Map.of("referenceImages", List.of("first.png", "last.png"))))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("同一个加载输入");
+    }
+
+    private ComfyUiWorkflowVersion linkedVersion(String sourceClass, int slot) {
+        return version("""
+                {"1":{"class_type":"%s","inputs":{"image":"old.png"}},
+                 "9":{"class_type":"SaveImage","inputs":{"images":["1",%d]}}}
+                """.formatted(sourceClass, slot), """
+                {"referenceImages":[{"nodeId":"9","inputName":"images","valueType":"uploaded_image","index":0}]}
+                """);
+    }
 }

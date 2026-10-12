@@ -21,8 +21,9 @@ public class AgnesImageStrategy extends AbstractOpenAiCompatibleImageStrategy {
     public AgnesImageStrategy(ImageGenerationService imageGenerationService,
                               AiModelService aiModelService,
                               OpenAiCompatibleImageProtocolSupport protocolSupport,
-                              AgnesImageProtocolAdapter protocolAdapter) {
-        super(imageGenerationService, aiModelService, protocolSupport, protocolAdapter);
+                              AgnesImageProtocolAdapter protocolAdapter,
+                              MediaStorageService mediaStorageService) {
+        super(imageGenerationService, aiModelService, protocolSupport, protocolAdapter, mediaStorageService);
     }
 
     public AgnesImageStrategy(ImageGenerationService imageGenerationService,
@@ -33,13 +34,14 @@ public class AgnesImageStrategy extends AbstractOpenAiCompatibleImageStrategy {
                               PresetArtStyleResourceResolver presetArtStyleResourceResolver) {
         this(imageGenerationService, aiModelService,
                 createWiring(modelPresetService, mediaStorageService, storageConfigService,
-                        presetArtStyleResourceResolver));
+                        presetArtStyleResourceResolver), mediaStorageService);
     }
 
     private AgnesImageStrategy(ImageGenerationService imageGenerationService,
                                AiModelService aiModelService,
-                               Wiring wiring) {
-        super(imageGenerationService, aiModelService, wiring.support(), wiring.adapter());
+                               Wiring wiring,
+                               MediaStorageService mediaStorageService) {
+        super(imageGenerationService, aiModelService, wiring.support(), wiring.adapter(), mediaStorageService);
     }
 
     @Override

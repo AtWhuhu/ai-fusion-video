@@ -34,7 +34,7 @@ jobs:
         working-directory: ./ai-fusion-video
         run: |
           chmod +x mvnw
-          ./mvnw package -DskipTests -B
+          ./mvnw clean package -DskipTests -B
 
       - name: Prepare backend Docker context
         working-directory: ./ai-fusion-video

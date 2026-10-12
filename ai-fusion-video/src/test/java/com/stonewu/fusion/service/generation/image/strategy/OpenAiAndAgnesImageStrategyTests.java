@@ -19,10 +19,14 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -89,7 +93,7 @@ class OpenAiAndAgnesImageStrategyTests {
                                 mock(ImageGenerationService.class),
                                 mock(AiModelService.class),
                                 mock(ModelPresetService.class),
-                                mock(MediaStorageService.class),
+                                imageStorage(),
                                 storageConfigService,
                                 presetArtStyleResourceResolver
                 );
@@ -117,13 +121,13 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"url":"https://example.com/generated.png"}]}
                     """);
         });
-        server.start();
+        startServer();
 
         OpenAiImageStrategy strategy = new OpenAiImageStrategy(
                 mock(ImageGenerationService.class),
                 mock(AiModelService.class),
                 mock(ModelPresetService.class),
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -136,14 +140,15 @@ class OpenAiAndAgnesImageStrategyTests {
 
         List<String> urls = strategy.generate("a test prompt", "gpt-image-2", 1024, 1024, 1, null, apiConfig);
 
-        assertThat(urls).containsExactly("https://example.com/generated.png");
+        assertThat(urls).containsExactly("/media/images/generated.png");
         assertThat(requestPath.get()).isEqualTo("/images/generations");
         assertThat(requestBody.get()).contains("\"model\":\"gpt-image-2\"");
         assertThat(requestBody.get()).contains("\"size\":\"1024x1024\"");
     }
 
-    @Test
-    void generateStoresBase64ImageResponses() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"/media/images/generated.png", "https://owned-storage.invalid/generated.png"})
+    void generateStoresBase64ImageResponsesOnlyOnce(String storedUrl) throws Exception {
         byte[] imageBytes = "fake-image".getBytes(StandardCharsets.UTF_8);
         String base64Image = Base64.getEncoder().encodeToString(imageBytes);
 
@@ -151,11 +156,11 @@ class OpenAiAndAgnesImageStrategyTests {
         server.createContext("/v1/images/generations", exchange -> writeJson(exchange, 200, """
                 {"data":[{"b64_json":"%s"}]}
                 """.formatted(base64Image)));
-        server.start();
+        startServer();
 
-        MediaStorageService mediaStorageService = mock(MediaStorageService.class);
+        MediaStorageService mediaStorageService = imageStorage();
         when(mediaStorageService.storeBytes(any(), eq("images"), eq("png")))
-                .thenReturn("/media/images/generated.png");
+                .thenReturn(storedUrl);
 
         OpenAiImageStrategy strategy = new OpenAiImageStrategy(
                 mock(ImageGenerationService.class),
@@ -173,7 +178,8 @@ class OpenAiAndAgnesImageStrategyTests {
 
         List<String> urls = strategy.generate("a test prompt", "gpt-image-2", 1024, 1024, 1, null, apiConfig);
 
-        assertThat(urls).containsExactly("/media/images/generated.png");
+        assertThat(urls).containsExactly(storedUrl);
+        assertThat(strategy.persistsResults()).isTrue();
         verify(mediaStorageService).storeBytes(imageBytes, "images", "png");
     }
 
@@ -188,7 +194,7 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"url":"https://example.com/generated-2k.png"}]}
                     """);
         });
-        server.start();
+        startServer();
 
         ModelPresetService modelPresetService = mock(ModelPresetService.class);
         when(modelPresetService.getPresetConfig("gpt-image-2")).thenReturn("""
@@ -208,7 +214,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 mock(ImageGenerationService.class),
                 mock(AiModelService.class),
                 modelPresetService,
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -225,7 +231,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 .build();
         List<String> urls = strategy.generate("a scenic panorama", model, 2560, 1440, 1, null, apiConfig);
 
-        assertThat(urls).containsExactly("https://example.com/generated-2k.png");
+        assertThat(urls).containsExactly("/media/images/generated-2k.png");
         assertThat(requestBody.get()).contains("\"size\":\"2560x1440\"");
     }
 
@@ -244,7 +250,7 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"url":"https://example.com/agnes-%d.png"}]}
                     """.formatted(currentRequest));
         });
-        server.start();
+        startServer();
 
         ModelPresetService modelPresetService = mock(ModelPresetService.class);
         when(modelPresetService.getPresetConfig("agnes-image-2.1-flash")).thenReturn(AGNES_IMAGE_CONFIG);
@@ -253,7 +259,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 mock(ImageGenerationService.class),
                 mock(AiModelService.class),
                 modelPresetService,
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -280,8 +286,8 @@ class OpenAiAndAgnesImageStrategyTests {
         );
 
         assertThat(urls).containsExactly(
-                "https://example.com/agnes-1.png",
-                "https://example.com/agnes-2.png"
+                "/media/images/agnes-1.png",
+                "/media/images/agnes-2.png"
         );
         assertThat(requestPath.get()).isEqualTo("/v1/images/generations");
         assertThat(requestCount.get()).isEqualTo(2);
@@ -315,7 +321,7 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"url":"https://example.com/agnes-20.png"}]}
                     """);
         });
-        server.start();
+        startServer();
 
         ModelPresetService modelPresetService = mock(ModelPresetService.class);
         when(modelPresetService.getPresetConfig("agnes-image-2.0-flash")).thenReturn(AGNES_IMAGE_20_CONFIG);
@@ -324,7 +330,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 mock(ImageGenerationService.class),
                 mock(AiModelService.class),
                 modelPresetService,
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -348,7 +354,7 @@ class OpenAiAndAgnesImageStrategyTests {
         );
 
         JSONObject json = JSONUtil.parseObj(requestBody.get());
-        assertThat(urls).containsExactly("https://example.com/agnes-20.png");
+        assertThat(urls).containsExactly("/media/images/agnes-20.png");
         assertThat(requestPath.get()).isEqualTo("/v1/images/generations");
         assertThat(json.getStr("size")).isEqualTo("1024x768");
         assertThat(json.containsKey("ratio")).isFalse();
@@ -371,7 +377,7 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"url":"https://example.com/agnes-2k.png"}]}
                     """);
         });
-        server.start();
+        startServer();
 
         ImageGenerationService imageGenerationService = mock(ImageGenerationService.class);
         AiModelService aiModelService = mock(AiModelService.class);
@@ -390,7 +396,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 imageGenerationService,
                 aiModelService,
                 modelPresetService,
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -434,9 +440,9 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"b64_json":"%s"}],"output_format":"png"}
                     """.formatted(base64Image));
         });
-        server.start();
+        startServer();
 
-        MediaStorageService mediaStorageService = mock(MediaStorageService.class);
+        MediaStorageService mediaStorageService = imageStorage();
         when(mediaStorageService.storeBytes(any(), eq("images"), eq("png")))
                 .thenReturn("/media/images/generated.png");
         ImageGenerationService imageGenerationService = mock(ImageGenerationService.class);
@@ -503,9 +509,9 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"b64_json":"%s"}],"output_format":"png"}
                     """.formatted(base64Image));
         });
-        server.start();
+        startServer();
 
-        MediaStorageService mediaStorageService = mock(MediaStorageService.class);
+        MediaStorageService mediaStorageService = imageStorage();
         when(mediaStorageService.storeBytes(any(), eq("images"), eq("png")))
                 .thenReturn("/media/images/edited.png");
 
@@ -559,9 +565,9 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"data":[{"b64_json":"%s"}],"output_format":"png"}
                     """.formatted(base64Image));
         });
-        server.start();
+        startServer();
 
-        MediaStorageService mediaStorageService = mock(MediaStorageService.class);
+        MediaStorageService mediaStorageService = imageStorage();
         when(mediaStorageService.storeBytes(any(), eq("images"), eq("png")))
                 .thenReturn("/media/images/preset-edited.png");
 
@@ -616,7 +622,7 @@ class OpenAiAndAgnesImageStrategyTests {
                     {"code":200,"data":{"id":"task-123","status":"completed","progress":100,"result":{"images":[{"url":["https://example.com/async.png"]}]}}}
                     """);
         });
-        server.start();
+        startServer();
 
         ModelPresetService modelPresetService = mock(ModelPresetService.class);
         when(modelPresetService.getPresetConfig("gpt-image-2-official")).thenReturn("""
@@ -634,7 +640,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 mock(ImageGenerationService.class),
                 mock(AiModelService.class),
                 modelPresetService,
-                mock(MediaStorageService.class),
+                imageStorage(),
                 storageConfigService,
                 presetArtStyleResourceResolver
         );
@@ -657,7 +663,7 @@ class OpenAiAndAgnesImageStrategyTests {
                 apiConfig
         );
 
-        assertThat(urls).containsExactly("https://example.com/async.png");
+        assertThat(urls).containsExactly("/media/images/async.png");
         assertThat(generationPath.get()).isEqualTo("/v1/images/generations");
         assertThat(taskPath.get()).isEqualTo("/v1/tasks/task-123");
         assertThat(generationBody.get()).contains("\"image_urls\":[\"https://example.com/reference.png\"]");
@@ -665,10 +671,37 @@ class OpenAiAndAgnesImageStrategyTests {
     }
 
     private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {
+        body = body.replace("https://example.com/", "http://localhost:"
+                + exchange.getLocalAddress().getPort() + "/media-fixtures/");
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(status, bytes.length);
         exchange.getResponseBody().write(bytes);
         exchange.close();
+    }
+
+    private void startServer() {
+        server.createContext("/media-fixtures/", exchange -> {
+            if (!"Bearer test-key".equals(exchange.getRequestHeaders().getFirst("Authorization"))) {
+                exchange.sendResponseHeaders(401, -1);
+                exchange.close();
+                return;
+            }
+            String filename = exchange.getRequestURI().getPath().substring("/media-fixtures/".length());
+            byte[] bytes = filename.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) {
+                output.write(bytes);
+            }
+        });
+        server.start();
+    }
+
+    private MediaStorageService imageStorage() {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        when(storage.storeFile(any(Path.class), eq("images"), eq("png"))).thenAnswer(invocation ->
+                "/media/images/" + Files.readString(invocation.getArgument(0), StandardCharsets.UTF_8));
+        return storage;
     }
 }

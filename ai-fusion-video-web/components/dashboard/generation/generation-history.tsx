@@ -9,6 +9,7 @@ import {
   Square,
   Sparkles,
 } from "lucide-react";
+import { GenerationDeleteButton } from "./generation-delete-button";
 import type { AiModel } from "@/lib/api/ai-model";
 import { getModelDisplayParts } from "@/lib/model-display";
 import { Button } from "@/components/ui/button";
@@ -68,6 +69,7 @@ interface GenerationHistoryProps {
   onAddAsset: (item: GenerationResultItem, prompt: string) => void;
   onCancel: (taskId: string) => void;
   cancellingTaskIds: Set<string>;
+  onDelete: (id: number) => Promise<void>;
 }
 
 export function GenerationHistory({
@@ -84,6 +86,7 @@ export function GenerationHistory({
   onAddAsset,
   onCancel,
   cancellingTaskIds,
+  onDelete,
 }: GenerationHistoryProps) {
   const [mediaPreview, setMediaPreview] = useState<GenerationMediaPreview | null>(null);
   const modelsById = new Map(models.map((model) => [model.id, model]));
@@ -272,6 +275,9 @@ export function GenerationHistory({
                   <RotateCcw className="h-3 w-3" />
                   再次使用
                 </Button>
+                {(task.status === 2 || task.status === 3) && (
+                  <GenerationDeleteButton recordId={task.id} onDelete={onDelete} />
+                )}
               </div>
             </header>
 

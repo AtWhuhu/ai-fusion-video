@@ -171,6 +171,7 @@ public class GenerateImageToolExecutor implements ToolExecutor {
 
             return JSONUtil.createObj()
                     .set("status", "success")
+                    .set("recordId", completed.getId())
                     .set("imageUrl", imageUrl)
                     .set("prompt", prompt)
                     .toString();

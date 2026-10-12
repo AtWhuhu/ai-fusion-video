@@ -21,8 +21,9 @@ public class NewApiImageStrategy extends AbstractOpenAiCompatibleImageStrategy {
     public NewApiImageStrategy(ImageGenerationService imageGenerationService,
                                AiModelService aiModelService,
                                OpenAiCompatibleImageProtocolSupport protocolSupport,
-                               NewApiImageProtocolAdapter protocolAdapter) {
-        super(imageGenerationService, aiModelService, protocolSupport, protocolAdapter);
+                               NewApiImageProtocolAdapter protocolAdapter,
+                               MediaStorageService mediaStorageService) {
+        super(imageGenerationService, aiModelService, protocolSupport, protocolAdapter, mediaStorageService);
     }
 
     public NewApiImageStrategy(ImageGenerationService imageGenerationService,
@@ -33,13 +34,14 @@ public class NewApiImageStrategy extends AbstractOpenAiCompatibleImageStrategy {
                                PresetArtStyleResourceResolver presetArtStyleResourceResolver) {
         this(imageGenerationService, aiModelService,
                 createWiring(modelPresetService, mediaStorageService, storageConfigService,
-                        presetArtStyleResourceResolver));
+                        presetArtStyleResourceResolver), mediaStorageService);
     }
 
     private NewApiImageStrategy(ImageGenerationService imageGenerationService,
                                 AiModelService aiModelService,
-                                Wiring wiring) {
-        super(imageGenerationService, aiModelService, wiring.support(), wiring.adapter());
+                                Wiring wiring,
+                                MediaStorageService mediaStorageService) {
+        super(imageGenerationService, aiModelService, wiring.support(), wiring.adapter(), mediaStorageService);
     }
 
     @Override

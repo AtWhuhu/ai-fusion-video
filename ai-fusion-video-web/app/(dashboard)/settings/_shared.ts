@@ -160,6 +160,24 @@ export function getPlatformFields(platform: string): PlatformField[] {
           helperText: "仅在 ComfyUI 前置网关要求 Bearer 鉴权时填写。",
         },
       ];
+    case "sonilo":
+      return [
+        {
+          key: "apiUrl",
+          label: "API 地址",
+          placeholder: "https://api.sonilo.com（留空使用官方地址）",
+          type: "text",
+          helperText: "只填服务根地址；系统会自动调用 /v1/video-to-music、/v1/video-to-sfx 和 /v1/tasks。",
+        },
+        {
+          key: "apiKey",
+          label: "API 密钥",
+          placeholder: "sonilo.com 获取",
+          type: "password",
+          required: true,
+          helperText: "保存后即开启本集合成后的自动配乐；禁用或删除本配置即关闭。",
+        },
+      ];
     default:
       return [
         { key: "apiUrl", label: "API 地址", placeholder: "https://...", type: "text" },

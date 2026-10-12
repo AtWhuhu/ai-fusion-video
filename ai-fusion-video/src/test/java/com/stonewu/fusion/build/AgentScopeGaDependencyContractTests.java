@@ -46,7 +46,14 @@ class AgentScopeGaDependencyContractTests {
                     + "|formatter\\.(gemini|anthropic)\\.[A-Za-z0-9_$]+|session\\.mysql\\.[A-Za-z0-9_$]+"
                     + "|hook\\.[A-Za-z0-9_$]+|ReActAgent)"
                     + "|AnthropicAgentScopeProxySupport|ProxyAwareAnthropicChatModel"
-                    + "|GeminiToolResponseAwareChatFormatter|VertexAgentScopeProxySupport|MysqlSession");
+                    + "|GeminiToolResponseAwareChatFormatter|VertexAgentScopeProxySupport|\\bMysqlSession\\b");
+
+    @Test
+    void obsoleteSymbolGuardDoesNotMatchTimeZoneMethodNames() {
+        assertThat(FORBIDDEN_SOURCE.matcher("new MysqlSession()").find()).isTrue();
+        assertThat(FORBIDDEN_SOURCE.matcher("loadsApplicationAndMysqlSessionTimeZonesFromConfiguration").find())
+                .isFalse();
+    }
 
     @Test
     void pomDeclaresOnlyGa() throws Exception {

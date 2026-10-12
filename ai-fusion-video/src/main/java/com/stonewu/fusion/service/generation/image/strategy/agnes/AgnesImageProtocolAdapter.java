@@ -8,6 +8,7 @@ import com.stonewu.fusion.service.generation.image.strategy.support.OpenAiCompat
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /**
  * Agnes Image 2.0/2.1 adapter.
@@ -37,8 +38,9 @@ public class AgnesImageProtocolAdapter implements OpenAiCompatibleImageProtocolA
     }
 
     @Override
-    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody) {
-        return support.parseAgnesImageUrls(responseBody);
+    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody,
+                                       UnaryOperator<String> persistRemoteUrl) {
+        return support.parseAgnesImageUrls(responseBody, persistRemoteUrl);
     }
 
     @Override

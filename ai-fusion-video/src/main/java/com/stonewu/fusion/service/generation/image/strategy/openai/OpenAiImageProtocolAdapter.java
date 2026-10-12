@@ -9,6 +9,7 @@ import com.stonewu.fusion.service.generation.image.strategy.support.OpenAiCompat
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /** Standard OpenAI Images API generations/edits adapter. */
 @Component
@@ -36,8 +37,9 @@ public class OpenAiImageProtocolAdapter implements OpenAiCompatibleImageProtocol
     }
 
     @Override
-    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody) {
-        return support.parseOpenAiImageUrls(responseBody);
+    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody,
+                                       UnaryOperator<String> persistRemoteUrl) {
+        return support.parseOpenAiImageUrls(responseBody, persistRemoteUrl);
     }
 
     @Override

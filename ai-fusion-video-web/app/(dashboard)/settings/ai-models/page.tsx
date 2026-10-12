@@ -481,7 +481,7 @@ export default function AiModelsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0 mt-0.5">
-            {config.platform !== "comfyui" && (
+            {config.platform !== "comfyui" && config.platform !== "sonilo" && (
               <button
                 type="button"
                 onClick={() => { setFetchModelsConfig(config); setFetchModelsDialogOpen(true); }}

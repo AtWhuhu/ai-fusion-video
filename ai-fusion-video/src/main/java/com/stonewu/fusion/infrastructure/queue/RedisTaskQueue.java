@@ -230,6 +230,11 @@ public class RedisTaskQueue {
         stringRedisTemplate.delete(getRunningKey(queueName, taskId));
     }
 
+    /** 终态已写入时，后台 worker 可能仍在收尾；删除记录前必须等待租约释放。 */
+    public boolean isRunning(String queueName, String taskId) {
+        return Boolean.TRUE.equals(stringRedisTemplate.hasKey(getRunningKey(queueName, taskId)));
+    }
+
     /**
      * 续约任务租约
      */

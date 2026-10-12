@@ -7,6 +7,7 @@ import com.stonewu.fusion.service.generation.image.strategy.support.OpenAiCompat
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /** OpenAI-shaped, non-official image APIs such as NewAPI async task endpoints. */
 @Component
@@ -33,8 +34,9 @@ public class NewApiImageProtocolAdapter implements OpenAiCompatibleImageProtocol
     }
 
     @Override
-    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody) {
-        return support.parseImageUrls(responseBody);
+    public List<String> parseImageUrls(OpenAiCompatibleImageProtocolContext context, String responseBody,
+                                       UnaryOperator<String> persistRemoteUrl) {
+        return support.parseImageUrls(responseBody, persistRemoteUrl);
     }
 
     @Override

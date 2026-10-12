@@ -34,6 +34,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -312,22 +313,23 @@ public class OpenAiCompatibleImageProtocolSupport {
         }
     }
 
-    public List<String> parseImageUrls(String responseBody) {
-        return parseImageUrls(responseBody, true, "兼容图片");
+    public List<String> parseImageUrls(String responseBody, UnaryOperator<String> persistRemoteUrl) {
+        return parseImageUrls(responseBody, true, "兼容图片", persistRemoteUrl);
     }
 
     /** Parse only response fields documented by the official OpenAI Images API. */
-    public List<String> parseOpenAiImageUrls(String responseBody) {
-        return parseImageUrls(responseBody, false, "OpenAI");
+    public List<String> parseOpenAiImageUrls(String responseBody, UnaryOperator<String> persistRemoteUrl) {
+        return parseImageUrls(responseBody, false, "OpenAI", persistRemoteUrl);
     }
 
-    public List<String> parseAgnesImageUrls(String responseBody) {
-        return parseImageUrls(responseBody, false, "Agnes");
+    public List<String> parseAgnesImageUrls(String responseBody, UnaryOperator<String> persistRemoteUrl) {
+        return parseImageUrls(responseBody, false, "Agnes", persistRemoteUrl);
     }
 
     private List<String> parseImageUrls(String responseBody,
                                         boolean allowCompatibleAliases,
-                                        String providerLabel) {
+                                        String providerLabel,
+                                        UnaryOperator<String> persistRemoteUrl) {
         try {
             JsonNode root = OBJECT_MAPPER.readTree(responseBody);
             String errorMessage = extractErrorMessage(root);
@@ -342,7 +344,7 @@ public class OpenAiCompatibleImageProtocolSupport {
             for (JsonNode item : data) {
                 String url = allowCompatibleAliases ? firstText(item, "url", "image_url") : textValue(item, "url");
                 if (StrUtil.isNotBlank(url)) {
-                    urls.add(url);
+                    urls.add(persistRemoteUrl.apply(url));
                     continue;
                 }
                 String b64Json = textValue(item, "b64_json");

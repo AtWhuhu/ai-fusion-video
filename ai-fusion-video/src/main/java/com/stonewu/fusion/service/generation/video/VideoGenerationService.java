@@ -8,9 +8,11 @@ import com.stonewu.fusion.entity.generation.VideoItem;
 import com.stonewu.fusion.entity.generation.VideoTask;
 import com.stonewu.fusion.mapper.generation.VideoItemMapper;
 import com.stonewu.fusion.mapper.generation.VideoTaskMapper;
+import com.stonewu.fusion.infrastructure.queue.RedisTaskQueue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +29,7 @@ public class VideoGenerationService {
 
     private final VideoTaskMapper taskMapper;
     private final VideoItemMapper itemMapper;
+    private final RedisTaskQueue taskQueue;
 
     @Cacheable(value = "videoTask", key = "#id")
     public VideoTask getById(Long id) {
@@ -69,12 +72,32 @@ public class VideoGenerationService {
         VideoTask task = getById(id);
         task.setStatus(status);
         task.setErrorMsg(errorMsg);
-        taskMapper.updateById(task);
+        if (taskMapper.updateById(task) != 1) {
+            throw new BusinessException(409, "视频任务已删除，不能继续执行");
+        }
     }
 
-    @CacheEvict(value = "videoTask", allEntries = true)
+    @Caching(evict = {
+            @CacheEvict(value = "videoTask", allEntries = true),
+            @CacheEvict(value = "videoItems", allEntries = true)
+    })
     @Transactional
-    public void delete(Long id) {
+    public void delete(Long id, Long userId) {
+        VideoTask task = taskMapper.selectOne(new LambdaQueryWrapper<VideoTask>()
+                .eq(VideoTask::getId, id).last("FOR UPDATE"));
+        if (task == null || userId == null || !userId.equals(task.getUserId())) {
+            throw new BusinessException(404, "视频任务不存在");
+        }
+        if (!Integer.valueOf(2).equals(task.getStatus()) && !Integer.valueOf(3).equals(task.getStatus())) {
+            throw new BusinessException(409, "请等待视频生成结束后再删除记录");
+        }
+        String queueName = "video_generation:model:" + task.getModelId();
+        if (taskQueue.isRunning(queueName, task.getTaskId())) {
+            throw new BusinessException(409, "视频任务仍在结束处理中，请稍后再删除");
+        }
+        taskQueue.remove(queueName, task.getTaskId());
+        // 删除关联的视频条目
+        itemMapper.delete(new LambdaQueryWrapper<VideoItem>().eq(VideoItem::getTaskId, id));
         taskMapper.deleteById(id);
     }
 

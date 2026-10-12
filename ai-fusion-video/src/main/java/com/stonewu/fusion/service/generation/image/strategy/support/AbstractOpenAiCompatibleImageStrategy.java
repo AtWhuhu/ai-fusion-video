@@ -9,16 +9,23 @@ import com.stonewu.fusion.entity.generation.ImageItem;
 import com.stonewu.fusion.entity.generation.ImageTask;
 import com.stonewu.fusion.service.ai.AiModelService;
 import com.stonewu.fusion.service.ai.proxy.AiProxySupport;
+import com.stonewu.fusion.service.generation.ProviderMediaAuthorization;
 import com.stonewu.fusion.service.generation.image.ImageGenerationService;
 import com.stonewu.fusion.service.generation.image.strategy.ImageGenerationStrategy;
+import com.stonewu.fusion.service.storage.MediaStorageService;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
 import java.io.IOException;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -35,16 +42,19 @@ public abstract class AbstractOpenAiCompatibleImageStrategy implements ImageGene
     private final AiModelService aiModelService;
     private final OpenAiCompatibleImageProtocolSupport protocolSupport;
     private final OpenAiCompatibleImageProtocolAdapter protocolAdapter;
+    private final MediaStorageService mediaStorageService;
     private final OkHttpClient okHttpClient;
 
     protected AbstractOpenAiCompatibleImageStrategy(ImageGenerationService imageGenerationService,
                                                      AiModelService aiModelService,
                                                      OpenAiCompatibleImageProtocolSupport protocolSupport,
-                                                     OpenAiCompatibleImageProtocolAdapter protocolAdapter) {
+                                                     OpenAiCompatibleImageProtocolAdapter protocolAdapter,
+                                                     MediaStorageService mediaStorageService) {
         this.imageGenerationService = imageGenerationService;
         this.aiModelService = aiModelService;
         this.protocolSupport = protocolSupport;
         this.protocolAdapter = protocolAdapter;
+        this.mediaStorageService = mediaStorageService;
         this.okHttpClient = defaultHttpClient();
     }
 
@@ -137,7 +147,8 @@ public abstract class AbstractOpenAiCompatibleImageStrategy implements ImageGene
                     providerLabel(), context.modelCode(), context.width(), context.height(), protocolRequest.url(),
                     attempt + 1, requestAttempts);
             String responseBody = execute(protocolRequest, context.apiConfig(), "图片生成");
-            generatedUrls.addAll(protocolAdapter.parseImageUrls(requestContext, responseBody));
+            generatedUrls.addAll(protocolAdapter.parseImageUrls(requestContext, responseBody,
+                    url -> persistGeneratedImage(url, context.apiConfig())));
         }
 
         return generatedUrls.size() <= desiredCount
@@ -170,7 +181,7 @@ public abstract class AbstractOpenAiCompatibleImageStrategy implements ImageGene
                 if (result.urls().isEmpty()) {
                     throw new RuntimeException(providerLabel() + " 异步图片任务已完成但未返回图片 URL");
                 }
-                return result.urls();
+                return persistGeneratedImages(result.urls(), apiConfig);
             }
             if (result.failed()) {
                 throw new RuntimeException(providerLabel() + " 异步图片任务失败: "
@@ -222,6 +233,107 @@ public abstract class AbstractOpenAiCompatibleImageStrategy implements ImageGene
         } catch (IOException e) {
             throw new RuntimeException(providerLabel() + " " + operation + "调用异常: " + e.getMessage(), e);
         }
+    }
+
+    private List<String> persistGeneratedImages(List<String> urls, ApiConfig apiConfig) {
+        if (urls == null || urls.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> persisted = new ArrayList<>(urls.size());
+        for (String url : urls) {
+            if (StrUtil.isBlank(url) || url.startsWith("/media/")) {
+                persisted.add(url);
+                continue;
+            }
+            persisted.add(persistGeneratedImage(url, apiConfig));
+        }
+        return persisted;
+    }
+
+    private String persistGeneratedImage(String remoteUrl, ApiConfig apiConfig) {
+        if (remoteUrl.startsWith("/media/")) return remoteUrl;
+        if (!isHttpUrl(remoteUrl)) {
+            return mediaStorageService.downloadAndStore(remoteUrl, "images");
+        }
+
+        Request.Builder builder = new Request.Builder()
+                .url(remoteUrl)
+                .addHeader("Accept", "image/*,*/*;q=0.8")
+                .get();
+        if (shouldForwardApiAuthorization(remoteUrl, apiConfig)) {
+            builder.addHeader("Authorization", "Bearer " + apiConfig.getApiKey());
+        }
+
+        OkHttpClient client = AiProxySupport.okHttpClient(okHttpClient, apiConfig);
+        Path tempFile = null;
+        try (Response response = client.newCall(builder.build()).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                throw new RuntimeException(providerLabel() + " 生成图片持久化失败: HTTP " + response.code()
+                        + " - " + remoteUrl);
+            }
+            String extension = imageExtension(response.header("Content-Type"), remoteUrl);
+            tempFile = Files.createTempFile("fusion-provider-image-", "." + extension);
+            Files.copy(response.body().byteStream(), tempFile, StandardCopyOption.REPLACE_EXISTING);
+            if (Files.size(tempFile) == 0) throw new BusinessException("生成图片为空");
+            String storedUrl = mediaStorageService.storeFile(tempFile, "images", extension);
+            log.info("[{} Image] 生成图片已持久化: source={}, stored={}",
+                    providerLabel(), remoteUrl, storedUrl);
+            return storedUrl;
+        } catch (IOException e) {
+            throw new RuntimeException(providerLabel() + " 生成图片持久化异常: " + e.getMessage(), e);
+        } finally {
+            if (tempFile != null) {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException e) {
+                    log.warn("清理生成图片临时文件失败: {}", tempFile, e);
+                }
+            }
+        }
+    }
+
+    private boolean shouldForwardApiAuthorization(String remoteUrl, ApiConfig apiConfig) {
+        return ProviderMediaAuthorization.shouldAuthorize(
+                remoteUrl, apiConfig, OpenAiCompatibleImageProtocolSupport.DEFAULT_BASE_URL);
+    }
+
+    @Override
+    public boolean persistsResults() {
+        return true;
+    }
+
+    private static boolean isHttpUrl(String value) {
+        String lower = StrUtil.blankToDefault(value, "").trim().toLowerCase(Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://");
+    }
+
+    private static String imageExtension(String contentType, String url) {
+        String normalized = StrUtil.blankToDefault(contentType, "").split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "image/png" -> "png";
+            case "image/jpeg", "image/jpg" -> "jpg";
+            case "image/webp" -> "webp";
+            case "image/gif" -> "gif";
+            case "image/avif" -> "avif";
+            default -> extensionFromUrl(url);
+        };
+    }
+
+    private static String extensionFromUrl(String url) {
+        try {
+            String path = URI.create(url).getPath();
+            if (StrUtil.isNotBlank(path)) {
+                String lower = path.toLowerCase(Locale.ROOT);
+                if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "jpg";
+                if (lower.endsWith(".webp")) return "webp";
+                if (lower.endsWith(".gif")) return "gif";
+                if (lower.endsWith(".avif")) return "avif";
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Fall back to PNG for URLs that cannot be parsed.
+        }
+        return "png";
     }
 
     private OpenAiCompatibleImageProtocolContext buildContext(AiModel model,

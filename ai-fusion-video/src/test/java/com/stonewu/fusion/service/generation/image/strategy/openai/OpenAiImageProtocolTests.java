@@ -154,7 +154,7 @@ class OpenAiImageProtocolTests {
     void responseParserDoesNotAcceptCompatibilityOnlyImageUrlAlias() {
         assertThatThrownBy(() -> adapter.parseImageUrls(null, """
                 {"data":[{"image_url":"https://example.com/result.png"}]}
-                """))
+                """, url -> url))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("未找到 url 或 b64_json");
     }

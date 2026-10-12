@@ -226,6 +226,7 @@ public class GenerateVideoToolExecutor implements ToolExecutor {
 
             return JSONUtil.createObj()
                     .set("status", "success")
+                    .set("recordId", completed.getId())
                     .set("videoUrl", videoItem.getVideoUrl())
                     .set("coverUrl", videoItem.getCoverUrl())
                     .set("duration", videoItem.getDuration())

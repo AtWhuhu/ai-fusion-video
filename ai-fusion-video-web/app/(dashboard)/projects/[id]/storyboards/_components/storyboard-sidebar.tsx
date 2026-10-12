@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { usePipelineStore } from "@/lib/store/pipeline-store";
+import { useStoryboardInvalidation } from "../_hooks/use-storyboard-invalidation";
 import { toastApiError } from "@/lib/api/toast-api-error";
 import {
   Film,
@@ -128,6 +128,7 @@ interface SidebarSelection {
 }
 
 interface StoryboardSidebarProps {
+  projectId: number;
   storyboardId: number;
   selection: SidebarSelection;
   activeSceneId?: number | null;
@@ -150,6 +151,7 @@ interface StoryboardSidebarProps {
 
 export function StoryboardSidebar(props: StoryboardSidebarProps) {
   const {
+    projectId,
     storyboardId,
     selection,
     activeSceneId,
@@ -181,9 +183,6 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
   const isInitialLoadedRef = useRef(false);
   const shouldReduceMotion = useReducedMotion();
 
-  // 监听 invalidation 自动强刷
-  const storyboardsInvalidation = usePipelineStore((s) => s.invalidation.storyboards);
-  const storyboardsInvRef = useRef(storyboardsInvalidation);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -213,7 +212,6 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
   // 加载分镜集
   const loadEpisodes = useCallback(async () => {
     try {
-      setLoading(true);
       const eps = await storyboardApi.listEpisodes(storyboardId);
       setEpisodes(eps);
       if (eps.length > 0) {
@@ -231,7 +229,10 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
           })
         );
         setScenesMap(newScenesMap);
-        props.onInitialLoad?.(eps[0].id);
+        if (!isInitialLoadedRef.current) {
+          isInitialLoadedRef.current = true;
+          props.onInitialLoad?.(eps[0].id);
+        }
       } else {
         setScenesMap({});
       }
@@ -248,12 +249,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
     loadEpisodes();
   }, [loadEpisodes]);
 
-  useEffect(() => {
-    if (storyboardsInvRef.current !== storyboardsInvalidation) {
-      storyboardsInvRef.current = storyboardsInvalidation;
-      loadEpisodes();
-    }
-  }, [storyboardsInvalidation, loadEpisodes]);
+  useStoryboardInvalidation(projectId, loadEpisodes);
 
   // 加载某集下的场次
   const loadScenes = async (episodeId: number) => {
