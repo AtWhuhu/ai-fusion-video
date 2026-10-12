@@ -136,7 +136,7 @@ export function GenerationAssetDialog({
           type: assetType,
           name: masterName.trim(),
           description: setting.trim(),
-          properties: JSON.stringify({ setting: setting.trim() }),
+          properties: { setting: setting.trim() },
         });
         targetAssetId = created.id;
       } else {
@@ -152,12 +152,12 @@ export function GenerationAssetDialog({
           target.mode === "image"
             ? sourceMediaUrl || undefined
             : previewUrl || undefined,
-        properties: JSON.stringify({
+        properties: {
           appearanceDescription: appearance.trim(),
           sourceGenerationMode: target.mode,
           sourceMediaUrl,
           sourceGenerationItemId: target.item.id,
-        }),
+        },
         sortOrder,
       });
 

@@ -1,5 +1,6 @@
 import { MapPin, Users, Wrench, type LucideIcon } from "lucide-react";
 import type { AssetItem } from "@/lib/api/asset";
+import { normalizeAssetProperties } from "@/lib/api/asset-properties";
 
 export const ASSET_TYPES: Array<{
   value: string;
@@ -19,7 +20,8 @@ export function getAssetType(value: string) {
 
 export function getAppearance(item: AssetItem | null) {
   if (!item?.properties) return "";
-  const value = item.properties.appearanceDescription ?? item.properties.appearance ?? item.properties.description;
+  const properties = normalizeAssetProperties(item.properties);
+  const value = properties.appearanceDescription ?? properties.appearance ?? properties.description;
   return typeof value === "string" ? value : "";
 }
 
@@ -33,6 +35,10 @@ export function getAppearanceHints(assetType: string) {
   return APPEARANCE_HINTS[assetType] || APPEARANCE_HINTS.prop;
 }
 
-export function parseProperties(properties: Record<string, unknown> | null) {
-  return properties || {};
+/**
+ * 读取子资产属性。后端返回对象，历史数据可能是 JSON 文本，统一归一化后再用，
+ * 避免把字符串直接展开成 `{"0":"{",...}` 之类的脏数据。
+ */
+export function parseProperties(properties: unknown) {
+  return normalizeAssetProperties(properties);
 }

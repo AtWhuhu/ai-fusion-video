@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import AssetTypePlaceholder from "@/components/dashboard/asset-type-placeholder";
 import { SafeImage } from "@/components/ui/safe-image";
+import { normalizeAssetProperties } from "@/lib/api/asset-properties";
 import {
   Save,
   Plus,
@@ -67,12 +68,7 @@ const LONG_TEXT_KEYS = new Set(["description", "relationship", "appearance", "pe
 
 /** 将后端返回的 properties（JSON 字符串或已解析对象）统一解析为 Record */
 function parseProps(raw: unknown): Record<string, string> {
-  if (!raw) return {};
-  if (typeof raw === "string") {
-    try { return JSON.parse(raw); } catch { return {}; }
-  }
-  if (typeof raw === "object") return raw as Record<string, string>;
-  return {};
+  return normalizeAssetProperties(raw) as Record<string, string>;
 }
 
 const assetTypeOptions = [
@@ -358,7 +354,7 @@ function AssetItemEditPanel({
         name: name || undefined,
         itemType: itemType || undefined,
         imageUrl: imageUrl || undefined,
-        properties: JSON.stringify(itemProperties),
+        properties: itemProperties,
       });
       setDirty(false);
       onUpdated();
@@ -714,7 +710,7 @@ function AssetItemCreatePanel({
         assetId,
         name: name.trim(),
         itemType: itemType || undefined,
-        properties: JSON.stringify(newItemProperties),
+        properties: newItemProperties,
       });
       onCreated();
     } catch (err) {
@@ -957,7 +953,7 @@ export default function AssetDetailPanel(props: Props) {
         name,
         description: description || undefined,
         coverUrl: coverUrl || undefined,
-        properties: JSON.stringify(properties),
+        properties,
       });
       setDirty(false);
       onSaved();

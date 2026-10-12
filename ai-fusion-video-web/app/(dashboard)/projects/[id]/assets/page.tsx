@@ -117,7 +117,12 @@ export default function ProjectAssetsPage() {
         type: payload.type,
         name: payload.name.trim(),
         description: payload.description.trim(),
-        properties: JSON.stringify({ setting: payload.description.trim() }),
+        // 合并已有属性，不能整体替换：直接覆盖会把角色/场景的分类属性（性别、年龄、
+        // 外貌、服装、场景类型……）整块丢掉。
+        properties: {
+          ...parseProperties(selectedAsset.properties),
+          setting: payload.description.trim(),
+        },
       });
       await loadAssets(true);
     } finally {
@@ -134,7 +139,7 @@ export default function ProjectAssetsPage() {
         type,
         name: name.trim(),
         description: description.trim(),
-        properties: JSON.stringify({ setting: description.trim() }),
+        properties: { setting: description.trim() },
       });
       await loadAssets(false);
       setSelectedAssetId(created.id);
@@ -154,10 +159,10 @@ export default function ProjectAssetsPage() {
         id: item.id,
         name: name.trim(),
         imageUrl: imageUrl.trim(),
-        properties: JSON.stringify({
+        properties: {
           ...parseProperties(item.properties),
           appearanceDescription: appearance.trim(),
-        }),
+        },
       });
       await loadAssets(true);
     } finally {
@@ -193,9 +198,9 @@ export default function ProjectAssetsPage() {
         assetId: selectedAsset.id,
         name: name.trim(),
         imageUrl: imageUrl.trim() || undefined,
-        properties: JSON.stringify({
+        properties: {
           appearanceDescription: appearance.trim(),
-        }),
+        },
         sortOrder: selectedAsset.items.length,
       });
       await loadAssets(true);

@@ -45,8 +45,9 @@ export interface AssetCreateReq {
   name: string;
   description?: string;
   coverUrl?: string;
-  properties?: string;
-  tags?: string[];
+  /** 动态属性：推荐直接传对象；后端同时兼容 JSON 文本 */
+  properties?: Record<string, unknown> | string | null;
+  tags?: string[] | string | null;
 }
 
 /** 更新资产请求 */
@@ -56,8 +57,9 @@ export interface AssetUpdateReq {
   name?: string;
   description?: string;
   coverUrl?: string;
-  properties?: string;
-  tags?: string[];
+  /** 动态属性：推荐直接传对象；后端同时兼容 JSON 文本 */
+  properties?: Record<string, unknown> | string | null;
+  tags?: string[] | string | null;
   status?: number;
 }
 
@@ -68,7 +70,8 @@ export interface AssetItemCreateReq {
   name?: string;
   imageUrl?: string;
   thumbnailUrl?: string;
-  properties?: string;
+  /** 动态属性：推荐直接传对象；后端同时兼容 JSON 文本 */
+  properties?: Record<string, unknown> | string | null;
   sortOrder?: number;
 }
 
@@ -79,7 +82,8 @@ export interface AssetItemUpdateReq {
   name?: string;
   imageUrl?: string;
   thumbnailUrl?: string;
-  properties?: string;
+  /** 动态属性：推荐直接传对象；后端同时兼容 JSON 文本 */
+  properties?: Record<string, unknown> | string | null;
   sortOrder?: number;
 }
 
