@@ -47,13 +47,11 @@ public class AssetItem extends BaseEntity {
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String properties;
 
-    /** 排列顺序 */
-    @Builder.Default
-    private Integer sortOrder = 0;
+    /** 排列顺序（默认值由数据库列默认承担，理由见 AFV 资产实体注释） */
+    private Integer sortOrder;
 
     /** 来源类型：1-用户上传 2-AI生成 */
-    @Builder.Default
-    private Integer sourceType = 1;
+    private Integer sourceType;
 
     /** AI生成时使用的提示词 */
     private String aiPrompt;

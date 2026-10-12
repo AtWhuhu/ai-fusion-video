@@ -53,9 +53,14 @@ public class Asset extends BaseEntity {
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String tags;
 
-    /** 来源类型：1-用户上传 2-AI生成 */
-    @Builder.Default
-    private Integer sourceType = 1;
+    /**
+     * 来源类型：1-用户上传 2-AI生成
+     * <p>
+     * 故意<b>不</b>用 {@code @Builder.Default} 给默认值：实体同时承担「局部更新入参」的角色，
+     * 字段初始化器会让 MapStruct（走 Lombok builder）转换出的更新对象带上非空默认值，
+     * 于是「只改名称」也会把 source_type 一起写掉。默认值交由数据库列默认承担（NOT NULL DEFAULT 1）。
+     */
+    private Integer sourceType;
 
     /** AI生成时使用的提示词 */
     private String aiPrompt;
@@ -66,7 +71,6 @@ public class Asset extends BaseEntity {
     /** 拥有者ID，关联用户或团队 */
     private Long ownerId;
 
-    /** 状态：0-草稿 1-正常 */
-    @Builder.Default
-    private Integer status = 1;
+    /** 状态：0-草稿 1-正常（默认值由数据库列默认承担，理由同 sourceType） */
+    private Integer status;
 }

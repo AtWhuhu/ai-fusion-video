@@ -114,6 +114,53 @@ class AssetServiceTests {
                 .hasMessageContaining("imageUrl 不支持 base64");
     }
 
+    /**
+     * 回归：局部更新不能碰调用方没传的列。
+     * Lombok builder 会把 sortOrder/sourceType 回填成 @Builder.Default（0/1），
+     * 一旦直接 updateById(入参)，改个名字就会把子资产排序重置到最前、来源类型改成「用户上传」。
+     */
+    @Test
+    void updateItemKeepsUntouchedColumns() {
+        when(assetItemMapper.selectById(5L)).thenReturn(AssetItem.builder()
+                .id(5L)
+                .assetId(1L)
+                .itemType("original")
+                .name("旧名")
+                .sortOrder(7)
+                .sourceType(2)
+                .build());
+
+        assetService.updateItem(AssetItem.builder().id(5L).name("新名").build());
+
+        ArgumentCaptor<AssetItem> captor = ArgumentCaptor.forClass(AssetItem.class);
+        verify(assetItemMapper).updateById(captor.capture());
+        AssetItem saved = captor.getValue();
+        assertThat(saved.getName()).isEqualTo("新名");
+        assertThat(saved.getSortOrder()).isEqualTo(7);
+        assertThat(saved.getSourceType()).isEqualTo(2);
+        assertThat(saved.getAssetId()).isEqualTo(1L);
+        assertThat(saved.getItemType()).isEqualTo("original");
+    }
+
+    @Test
+    void updateKeepsUntouchedStatusAndSourceType() {
+        when(assetMapper.selectById(7L)).thenReturn(Asset.builder()
+                .id(7L)
+                .name("旧名")
+                .sourceType(2)
+                .status(0)
+                .build());
+
+        assetService.update(Asset.builder().id(7L).name("新名").build());
+
+        ArgumentCaptor<Asset> captor = ArgumentCaptor.forClass(Asset.class);
+        verify(assetMapper).updateById(captor.capture());
+        Asset saved = captor.getValue();
+        assertThat(saved.getName()).isEqualTo("新名");
+        assertThat(saved.getSourceType()).isEqualTo(2);
+        assertThat(saved.getStatus()).isEqualTo(0);
+    }
+
         @Test
         void pageAccessibleByUserUsesCurrentTeamScope() {
                 when(teamService.getCurrentTeamIdByUser(9L)).thenReturn(5L);

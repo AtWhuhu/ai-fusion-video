@@ -236,10 +236,40 @@ public class AssetService {
     @CacheEvict(value = "asset", allEntries = true)
     @Transactional
     public Asset update(Asset asset) {
-        getById(asset.getId());
-        validateAssetMediaUrls(asset);
-        assetMapper.updateById(asset);
-        return asset;
+        Asset existing = assetMapper.selectById(asset.getId());
+        if (existing == null) {
+            throw new BusinessException("资产不存在: " + asset.getId());
+        }
+        // 局部更新：以库内行为基准，只覆盖请求里显式给出的字段（null = 不改动）。
+        //
+        // 不能直接 assetMapper.updateById(入参实体)：入参由 MapStruct 经 Lombok builder 生成，
+        // 而 sourceType/status 带 @Builder.Default，请求里没传也会被回填成 1 —— 于是一次普通的
+        // 「改个名字/描述」会把 source_type（AI 生成 → 用户上传）和 status 一起悄悄改掉。
+        // 逐字段合并可彻底摆脱这类「默认值反噬」，也让接口真正具备局部更新语义。
+        if (asset.getType() != null) {
+            existing.setType(asset.getType());
+        }
+        if (asset.getName() != null) {
+            existing.setName(asset.getName());
+        }
+        if (asset.getDescription() != null) {
+            existing.setDescription(asset.getDescription());
+        }
+        if (asset.getCoverUrl() != null) {
+            existing.setCoverUrl(asset.getCoverUrl());
+        }
+        if (asset.getProperties() != null) {
+            existing.setProperties(asset.getProperties());
+        }
+        if (asset.getTags() != null) {
+            existing.setTags(asset.getTags());
+        }
+        if (asset.getAiPrompt() != null) {
+            existing.setAiPrompt(asset.getAiPrompt());
+        }
+        validateAssetMediaUrls(existing);
+        assetMapper.updateById(existing);
+        return existing;
     }
 
     @CacheEvict(value = "asset", allEntries = true)
@@ -279,20 +309,37 @@ public class AssetService {
         AssetItem existing = assetItemMapper.selectById(item.getId());
         if (existing == null)
             throw new BusinessException("子资产不存在: " + item.getId());
-        validateAssetItemMediaUrls(item);
-        assetItemMapper.updateById(item);
-        // 部分更新时 item 可能缺少 assetId/imageUrl/itemType，用 existing 补全
-        if (item.getAssetId() == null) {
-            item.setAssetId(existing.getAssetId());
+        // 局部更新：只覆盖请求里显式给出的字段（null = 不改动），理由同 update()。
+        // 尤其是 sortOrder —— 入参没带时 Lombok builder 会回填 @Builder.Default 的 0，
+        // 直接把子资产的排序重置到最前，列表顺序错乱。
+        if (item.getItemType() != null) {
+            existing.setItemType(item.getItemType());
         }
-        if (item.getImageUrl() == null) {
-            item.setImageUrl(existing.getImageUrl());
+        if (item.getName() != null) {
+            existing.setName(item.getName());
         }
-        if (item.getItemType() == null) {
-            item.setItemType(existing.getItemType());
+        if (item.getImageUrl() != null) {
+            existing.setImageUrl(item.getImageUrl());
         }
-        syncCoverIfAbsent(item);
-        return item;
+        if (item.getThumbnailUrl() != null) {
+            existing.setThumbnailUrl(item.getThumbnailUrl());
+        }
+        if (item.getProperties() != null) {
+            existing.setProperties(item.getProperties());
+        }
+        if (item.getSortOrder() != null) {
+            existing.setSortOrder(item.getSortOrder());
+        }
+        if (item.getSourceType() != null) {
+            existing.setSourceType(item.getSourceType());
+        }
+        if (item.getAiPrompt() != null) {
+            existing.setAiPrompt(item.getAiPrompt());
+        }
+        validateAssetItemMediaUrls(existing);
+        assetItemMapper.updateById(existing);
+        syncCoverIfAbsent(existing);
+        return existing;
     }
 
     @CacheEvict(value = "assetItem", allEntries = true)
