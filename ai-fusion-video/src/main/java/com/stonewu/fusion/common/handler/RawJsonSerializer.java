@@ -16,10 +16,10 @@ import java.io.IOException;
  * 会输出成被转义的字符串（{@code "{\"a\":1}"}），导致前端取不到值。
  * <p>
  * 该序列化器把非空文本以原始 JSON 结构写出；空值/空串安全地输出为 {@code null}，
- * 避免产生非法 JSON。同时提供 {@link #parse(String)} 供手拼 Map 的场景复用（如
- * {@code AssetService#listWithItemsByProject}）。
+ * 避免产生非法 JSON。通过 {@code BeanSerializerModifier} 仅注册到 Web 层 ObjectMapper
+ * （见 {@code RawJsonJacksonConfig}），不会影响 Redis 缓存的序列化。
  */
-public class RawJsonSerializer extends JsonSerializer<String> {
+public class RawJsonSerializer extends JsonSerializer<Object> {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -39,16 +39,21 @@ public class RawJsonSerializer extends JsonSerializer<String> {
     }
 
     @Override
-    public void serialize(String value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
-        if (value == null || value.isBlank()) {
+    public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers) throws IOException {
+        if (value == null) {
+            gen.writeNull();
+            return;
+        }
+        String text = value.toString();
+        if (text.isBlank()) {
             gen.writeNull();
             return;
         }
         try {
-            gen.writeRawValue(value);
+            gen.writeRawValue(text);
         } catch (IOException e) {
             // 兜底：万一不是合法 JSON，则退回普通字符串，保证输出仍是合法 JSON
-            gen.writeString(value);
+            gen.writeString(text);
         }
     }
 }

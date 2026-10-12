@@ -4,9 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.stonewu.fusion.common.handler.JsonbTypeHandler;
-import com.stonewu.fusion.common.handler.RawJsonSerializer;
 import com.stonewu.fusion.common.BaseEntity;
 import lombok.*;
 
@@ -47,7 +45,6 @@ public class AssetItem extends BaseEntity {
 
     /** 动态属性 JSON，存储子资产特有属性 */
     @TableField(typeHandler = JsonbTypeHandler.class)
-    @JsonSerialize(using = RawJsonSerializer.class)
     private String properties;
 
     /** 排列顺序 */

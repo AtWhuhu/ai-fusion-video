@@ -4,9 +4,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.stonewu.fusion.common.handler.JsonbTypeHandler;
-import com.stonewu.fusion.common.handler.RawJsonSerializer;
 import com.stonewu.fusion.common.BaseEntity;
 import lombok.*;
 
@@ -49,12 +47,10 @@ public class Asset extends BaseEntity {
 
     /** 动态属性 JSON，存储资产特有的键值对信息，如角色的 appearance、age 等 */
     @TableField(typeHandler = JsonbTypeHandler.class)
-    @JsonSerialize(using = RawJsonSerializer.class)
     private String properties;
 
     /** 标签列表 JSON */
     @TableField(typeHandler = JsonbTypeHandler.class)
-    @JsonSerialize(using = RawJsonSerializer.class)
     private String tags;
 
     /** 来源类型：1-用户上传 2-AI生成 */
