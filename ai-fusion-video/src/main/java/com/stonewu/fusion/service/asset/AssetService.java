@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stonewu.fusion.common.BusinessException;
+import com.stonewu.fusion.common.handler.RawJsonSerializer;
 import com.stonewu.fusion.entity.asset.Asset;
 import com.stonewu.fusion.entity.asset.AssetItem;
 import com.stonewu.fusion.mapper.asset.AssetItemMapper;
@@ -81,6 +82,10 @@ public class AssetService {
 
         return assets.stream().map(asset -> {
             Map<String, Object> map = BeanUtil.beanToMap(asset, false, true);
+            // properties/tags 在实体中是 JSON 文本(String)，此处手拼 Map 会让 Jackson 当作字符串输出，
+            // 与前端「按对象读取」的约定不符，故显式解析为结构化节点。
+            map.put("properties", RawJsonSerializer.parse(asset.getProperties()));
+            map.put("tags", RawJsonSerializer.parse(asset.getTags()));
             map.put("items", itemsMap.getOrDefault(asset.getId(), List.of()));
             return map;
         }).collect(Collectors.toList());
