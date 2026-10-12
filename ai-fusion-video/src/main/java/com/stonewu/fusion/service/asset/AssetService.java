@@ -299,7 +299,7 @@ public class AssetService {
     public AssetItem createItem(AssetItem item) {
         validateAssetItemMediaUrls(item);
         assetItemMapper.insert(item);
-        syncCoverIfAbsent(item);
+        syncCover(item, null);
         return item;
     }
 
@@ -309,6 +309,7 @@ public class AssetService {
         AssetItem existing = assetItemMapper.selectById(item.getId());
         if (existing == null)
             throw new BusinessException("子资产不存在: " + item.getId());
+        String previousImageUrl = existing.getImageUrl();
         // 局部更新：只覆盖请求里显式给出的字段（null = 不改动），理由同 update()。
         // 尤其是 sortOrder —— 入参没带时 Lombok builder 会回填 @Builder.Default 的 0，
         // 直接把子资产的排序重置到最前，列表顺序错乱。
@@ -338,7 +339,7 @@ public class AssetService {
         }
         validateAssetItemMediaUrls(existing);
         assetItemMapper.updateById(existing);
-        syncCoverIfAbsent(existing);
+        syncCover(existing, previousImageUrl);
         return existing;
     }
 
@@ -383,9 +384,10 @@ public class AssetService {
     /**
      * 同步主资产封面：
      * - initial 类型子资产：新增或更新图片时，始终同步为主资产封面
-     * - 其他类型子资产：仅在主资产无封面时自动填充
+     * - 其他类型子资产：主资产无封面，或封面本就来自该子资产（封面等于其旧图）时跟随更新。
+     *   否则重新生成三视图/变体图后，封面会停留在旧图，资产列表头像不刷新。
      */
-    private void syncCoverIfAbsent(AssetItem item) {
+    private void syncCover(AssetItem item, String previousImageUrl) {
         if (StrUtil.isBlank(item.getImageUrl()) || item.getAssetId() == null) {
             return;
         }
@@ -393,10 +395,11 @@ public class AssetService {
         if (asset == null) {
             return;
         }
-        if ("initial".equals(item.getItemType())) {
-            asset.setCoverUrl(item.getImageUrl());
-            assetMapper.updateById(asset);
-        } else if (StrUtil.isBlank(asset.getCoverUrl())) {
+        boolean coverFromThisItem = previousImageUrl != null
+                && previousImageUrl.equals(asset.getCoverUrl());
+        if ("initial".equals(item.getItemType())
+                || StrUtil.isBlank(asset.getCoverUrl())
+                || coverFromThisItem) {
             asset.setCoverUrl(item.getImageUrl());
             assetMapper.updateById(asset);
         }
