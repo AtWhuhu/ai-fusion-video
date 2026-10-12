@@ -9,6 +9,8 @@ import com.stonewu.fusion.common.BaseEntity;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 分镜条目实体
@@ -134,6 +136,23 @@ public class StoryboardItem extends BaseEntity {
     /** 自定义扩展数据 JSON */
     @TableField(typeHandler = JsonbTypeHandler.class)
     private String customData;
+
+    /**
+     * 空间锚点注入文本（瞬态字段，不入库）
+     * <p>
+     * 由 SceneBlockingService 按请求从所属场景资产的 properties.blocking 确定性拼装，
+     * 是「人物在场景中的位置」的唯一注入来源。特写镜头只含人物站位。
+     */
+    @TableField(exist = false)
+    private String spatialBlock;
+
+    /**
+     * 所属场景可用的机位锚点选项（瞬态字段，不入库）
+     * <p>
+     * 每项含 id / name / angle，供分镜页「机位锚点」下拉使用。
+     */
+    @TableField(exist = false)
+    private List<Map<String, String>> sceneCameraOptions;
 
     /** 是否由AI生成 */
     @Builder.Default

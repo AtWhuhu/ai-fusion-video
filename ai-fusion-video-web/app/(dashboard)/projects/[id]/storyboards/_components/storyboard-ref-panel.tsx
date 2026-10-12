@@ -935,6 +935,7 @@ function ItemDetail({
   onEditAssets,
   onUpdateFrame,
   onGenerateFrame,
+  onGenerateVideo,
   onPreviewImage,
 }: {
   item: StoryboardItem;
@@ -944,6 +945,7 @@ function ItemDetail({
   onEditAssets?: () => void;
   onUpdateFrame?: (itemId: number, frameType: StoryboardFrameType, imageUrl: string | null) => Promise<void> | void;
   onGenerateFrame?: (item: StoryboardItem, frameType: StoryboardFrameType, prompt: string) => Promise<void> | void;
+  onGenerateVideo?: (item: StoryboardItem) => void;
   onPreviewImage?: (url: string, title: string) => void;
 }) {
   const router = useRouter();
@@ -1104,11 +1106,32 @@ function ItemDetail({
 
   return (
     <div className="p-4 space-y-5">
-      {/* 标题 */}
+      {/* 标题 + 单镜头视频生成入口 */}
       <div>
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <Info className="h-3 w-3" /> 镜头详情
-        </h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Info className="h-3 w-3" /> 镜头详情
+          </h4>
+          {onGenerateVideo && (
+            <button
+              type="button"
+              onClick={() => onGenerateVideo(item)}
+              title={
+                item.generatedVideoUrl || item.videoUrl
+                  ? "重新生成本镜头视频"
+                  : "为本镜头生成视频"
+              }
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                "bg-linear-to-r from-purple-600 to-pink-600 text-white",
+                "hover:shadow-md hover:shadow-purple-500/20 active:scale-[0.98]"
+              )}
+            >
+              <Video className="h-3.5 w-3.5" />
+              {item.generatedVideoUrl || item.videoUrl ? "重新生成视频" : "生成视频"}
+            </button>
+          )}
+        </div>
       </div>
 
       <FrameReferenceSection
@@ -1537,6 +1560,7 @@ export function StoryboardRefPanel({
   assetLookup,
   onUpdateFrame,
   onGenerateFrame,
+  onGenerateVideo,
   onBatchGenerateFrames,
   onEditAssets,
 }: {
@@ -1549,6 +1573,7 @@ export function StoryboardRefPanel({
   assetLookup?: Record<number, { item: AssetItem; asset: Asset }>;
   onUpdateFrame?: (itemId: number, frameType: StoryboardFrameType, imageUrl: string | null) => Promise<void> | void;
   onGenerateFrame?: (item: StoryboardItem, frameType: StoryboardFrameType, prompt: string) => Promise<void> | void;
+  onGenerateVideo?: (item: StoryboardItem) => void;
   onBatchGenerateFrames?: BatchFrameGenerateHandler;
   onEditAssets?: (item: StoryboardItem) => void;
 }) {
@@ -1573,6 +1598,7 @@ export function StoryboardRefPanel({
             assetLookup={assetLookup}
             onUpdateFrame={onUpdateFrame}
             onGenerateFrame={onGenerateFrame}
+            onGenerateVideo={onGenerateVideo}
             onEditAssets={() => onEditAssets?.(selectedItem)}
             onPreviewImage={handlePreviewImage}
           />

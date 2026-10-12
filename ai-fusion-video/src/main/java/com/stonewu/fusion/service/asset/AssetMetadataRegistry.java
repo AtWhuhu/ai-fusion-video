@@ -68,7 +68,14 @@ public final class AssetMetadataRegistry {
                                                                 opt("dawn", "晨"), opt("dusk", "黄昏")),
                                                 "场景默认时间段"),
                                 field("description", "场景描述", "text", false, null,
-                                                "场景的空间布局、陈设、建筑风格等可视化特征描述，用于AI生图。须符合故事年代设定")));
+                                                "场景的空间布局、陈设、建筑风格等可视化特征描述，用于AI生图。须符合故事年代设定"),
+                                field("blocking", "空间锚点", "json", false, null,
+                                                "场景空间锚点表（JSON），用于逐镜生成人物站位与关键物件的画面景位，"
+                                                                + "保证同一场景内跨镜头位置一致。结构："
+                                                                + "anchors[] 位置锚点（id 编号 / name 名称 / key 是否全场主地标每镜必带 / ring 是否环绕物每镜必带 / desc 空间位置描述）；"
+                                                                + "cameras[] 机位锚点（id / name / angle 机位角度 / move 运镜为环绕或跟 / desc 描述物件在画面中的景位）；"
+                                                                + "roles{} 角色默认站位（键为角色资产id，值含 at 指向锚点编号 / face 朝向 / note 约束）。"
+                                                                + "方位基准：正北为场地纵深远端即画面深处，正南为镜头来路")));
 
                 // prop（道具）
                 METADATA_MAP.put("prop", List.of(

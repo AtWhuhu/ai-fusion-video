@@ -574,10 +574,17 @@ export function useStoryboardWorkspace(projectId: number) {
     value: string | number | null
   ) => {
     try {
-      const updated = await storyboardApi.updateItem({
-        id: itemId,
-        [field]: field === "duration" ? (value ? Number(value) : null) : value,
-      });
+      // 机位锚点存在 custom_data 里，走专用接口（JSON 列不能当普通字符串字段写）
+      const updated =
+        field === "cameraAnchorId"
+          ? await storyboardApi.updateItemCameraAnchor(
+              itemId,
+              typeof value === "string" && value.trim() ? value.trim() : null
+            )
+          : await storyboardApi.updateItem({
+              id: itemId,
+              [field]: field === "duration" ? (value ? Number(value) : null) : value,
+            });
       setSceneGroups((prev) =>
         prev.map((g) => ({
           ...g,

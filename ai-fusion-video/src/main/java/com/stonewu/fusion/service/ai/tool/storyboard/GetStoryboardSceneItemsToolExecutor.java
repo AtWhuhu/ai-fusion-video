@@ -11,6 +11,7 @@ import com.stonewu.fusion.service.ai.ToolExecutionContext;
 import com.stonewu.fusion.service.ai.ToolExecutor;
 import com.stonewu.fusion.service.ai.tool.ToolResourceAccessGuard;
 import com.stonewu.fusion.service.asset.AssetService;
+import com.stonewu.fusion.service.storyboard.SceneBlockingService;
 import com.stonewu.fusion.service.storyboard.StoryboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,7 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
     private final StoryboardService storyboardService;
     private final AssetService assetService;
     private final ToolResourceAccessGuard accessGuard;
+    private final SceneBlockingService sceneBlockingService;
 
     @Override
     public String getToolName() {
@@ -130,6 +132,9 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
             // 批量查询子资产信息
             Map<Long, AssetItem> assetItemMap = batchGetAssetItems(allAssetItemIds);
 
+            // 注入场景空间锚点：人物站位与关键物件的画面景位按镜确定性生成，是唯一的空间约束来源
+            sceneBlockingService.fillSpatialContext(items);
+
             JSONArray itemList = new JSONArray();
             for (StoryboardItem item : items) {
                 JSONObject itemObj = JSONUtil.createObj()
@@ -162,7 +167,8 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
                         .set("characterIds", item.getCharacterIds())
                         .set("sceneAssetItemId", item.getSceneAssetItemId())
                         .set("propIds", item.getPropIds())
-                        .set("remark", item.getRemark());
+                        .set("remark", item.getRemark())
+                        .set("spatialBlock", item.getSpatialBlock());
 
                 // 内联角色参考图信息
                 JSONArray characterRefs = buildAssetRefs(item.getCharacterIds(), assetItemMap);

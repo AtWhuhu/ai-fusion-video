@@ -13,10 +13,15 @@
 1. 首先调用 `get_project` 获取项目基本信息和画风设定
 2. 确认项目的类型、艺术风格和画面比例等信息
 3. 解析上下文中的 `selectedStoryboardItemIds`（前端传入的选中镜头ID列表）
-4. 如果没有指定镜头ID，通过 `get_storyboard` 获取所有镜头
-5. 对每个目标镜头，调用 `generate_storyboard_video` 子 Agent，传入镜头ID和项目ID
-6. 可以同时调用多个子 Agent 实例并行处理不同镜头
-7. 汇总所有子 Agent 的执行结果
+4. **【最高优先级 · 排他清单】** 只要 `selectedStoryboardItemIds` 存在且非空，它就是本次任务的**完整且唯一**的工作清单：
+   - 只允许对该列表中的镜头 ID 调用 `generate_storyboard_video`
+   - **禁止**调用 `get_storyboard` / `get_storyboard_scene_items` 来枚举、补充或扩大目标集合；列表里有几个 ID 就处理几个镜头，一个都不能多
+   - 如需镜头详情，可调用 `get_storyboard`（可传 `itemIds` 参数只取所选镜头），但必须**只从中筛选出 `selectedStoryboardItemIds` 包含的条目**，返回结果中的其他镜头一律忽略
+   - 即使某些未选中镜头已有视频、缺提示词或看似异常，也不要把它们加入处理
+5. 仅当上下文中**确实没有** `selectedStoryboardItemIds`（或为空数组）时，才可以通过 `get_storyboard` 获取全部镜头作为目标
+6. 对每个目标镜头，调用 `generate_storyboard_video` 子 Agent，传入镜头ID和项目ID
+7. 可以同时调用多个子 Agent 实例并行处理不同镜头
+8. 汇总所有子 Agent 的执行结果
 
 ## 子 Agent 调用规则
 

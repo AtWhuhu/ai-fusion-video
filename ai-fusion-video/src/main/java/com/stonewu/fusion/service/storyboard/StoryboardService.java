@@ -2,6 +2,7 @@ package com.stonewu.fusion.service.storyboard;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
@@ -21,6 +22,7 @@ import com.stonewu.fusion.mapper.storyboard.StoryboardSceneMapper;
 import com.stonewu.fusion.service.storyboard.dto.StoryboardItemAssetsPatch;
 import com.stonewu.fusion.service.storyboard.dto.StoryboardStatistics;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class StoryboardService {
 
     private static final String[] IGNORE_FIELDS = {
@@ -447,6 +450,49 @@ public class StoryboardService {
         getItemById(item.getId());
         itemMapper.updateById(item);
         return itemMapper.selectById(item.getId());
+    }
+
+    /**
+     * 更新分镜条目的机位锚点。
+     *
+     * <p>机位锚点存放在 custom_data.cameraAnchorId，是导演对「本镜用哪个机位」的显式指定；
+     * 传 null 或空白表示清除该指定，回到按机位角度自动匹配。</p>
+     *
+     * @param itemId         分镜条目ID
+     * @param cameraAnchorId 场景锚点表中的机位编号，如 C2；空值表示自动
+     * @return 更新后的分镜条目
+     */
+    @CacheEvict(value = "storyboardItem", allEntries = true)
+    @Transactional
+    public StoryboardItem updateItemCameraAnchor(Long itemId, String cameraAnchorId) {
+        StoryboardItem existing = getItemById(itemId);
+        JSONObject customData = readCustomData(existing.getCustomData());
+        String normalized = StringUtils.hasText(cameraAnchorId) ? cameraAnchorId.trim() : null;
+        if (normalized == null) {
+            customData.remove("cameraAnchorId");
+        } else {
+            customData.set("cameraAnchorId", normalized);
+        }
+        itemMapper.update(null, new UpdateWrapper<StoryboardItem>()
+                .eq("id", itemId)
+                .set("custom_data", customData.isEmpty() ? null : customData.toString()));
+        return itemMapper.selectById(itemId);
+    }
+
+    /**
+     * 读取 custom_data JSON。为空或历史脏数据解析失败时返回空对象并告警，
+     * 避免一条脏数据阻断后续写入。
+     */
+    private JSONObject readCustomData(String customDataJson) {
+        if (!StringUtils.hasText(customDataJson)) {
+            return new JSONObject();
+        }
+        try {
+            return JSONUtil.parseObj(customDataJson);
+        } catch (Exception e) {
+            log.warn("分镜条目 custom_data 解析失败，按空对象处理: {}", customDataJson, e);
+            return new JSONObject();
+        }
     }
 
     /**

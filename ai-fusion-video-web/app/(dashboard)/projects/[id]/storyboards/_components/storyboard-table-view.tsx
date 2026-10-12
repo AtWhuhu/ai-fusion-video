@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { resolveMediaUrl } from "@/lib/api/client";
 import type { StoryboardFrameType, StoryboardItem } from "@/lib/api/storyboard";
 import { EditableCell } from "./editable-cell";
+import { StoryboardCameraAnchorCell } from "./storyboard-camera-anchor-cell";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { SafeImage } from "@/components/ui/safe-image";
@@ -49,6 +50,7 @@ type StoryboardTableField =
   | "duration"
   | "cameraAngle"
   | "cameraMovement"
+  | "cameraAnchorId"
   | "content"
   | "dialogue"
   | "sound"
@@ -63,6 +65,8 @@ interface ColumnDef {
   isImage?: boolean;
   isVideo?: boolean;
   multiline?: boolean;
+  /** 机位锚点列：渲染机位下拉，值写入 custom_data.cameraAnchorId */
+  isCameraAnchor?: boolean;
 }
 
 const COLUMNS: ColumnDef[] = [
@@ -75,6 +79,7 @@ const COLUMNS: ColumnDef[] = [
   { label: "景别", field: "shotType", initW: 64, minW: 50 },
   { label: "时长", field: "duration", initW: 48, minW: 40 },
   { label: "摄像机角度", field: "cameraAngle", initW: 90, minW: 60 },
+  { label: "机位锚点", field: "cameraAnchorId", initW: 96, minW: 72, isCameraAnchor: true },
   { label: "运镜", field: "cameraMovement", initW: 80, minW: 50 },
   {
     label: "分镜内容",
@@ -709,6 +714,13 @@ export function StoryboardTableView({
                           );
                         })()}
                       </div>
+                    ) : col.isCameraAnchor ? (
+                      <StoryboardCameraAnchorCell
+                        item={item}
+                        onSave={(itemId, cameraAnchorId) =>
+                          onUpdateItemField(itemId, "cameraAnchorId", cameraAnchorId)
+                        }
+                      />
                     ) : (
                       <EditableCell
                         value={

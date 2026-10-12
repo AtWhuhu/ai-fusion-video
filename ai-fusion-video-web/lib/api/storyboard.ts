@@ -100,6 +100,10 @@ export interface StoryboardItem {
   propIds: string | null;
   remark: string | null;
   customData: string | null;
+  /** 空间锚点注入文本：人物站位与关键物件的画面景位，由服务端按镜生成，只读 */
+  spatialBlock: string | null;
+  /** 所属场景可用的机位锚点选项，用于导演逐镜指定机位 */
+  sceneCameraOptions: StoryboardCameraOption[] | null;
   aiGenerated: boolean;
   status: number;
   createTime: string;
@@ -107,6 +111,13 @@ export interface StoryboardItem {
 }
 
 // ========== 请求类型 ==========
+
+/** 场景锚点表中的机位锚点，来自场景资产 properties.blocking.cameras */
+export interface StoryboardCameraOption {
+  id: string;
+  name: string;
+  angle: string | null;
+}
 
 /** 更新分镜请求 */
 export interface StoryboardUpdateReq {
@@ -340,6 +351,12 @@ export const storyboardApi = {
   /** 局部更新分镜条目资产关联 */
   updateItemAssets: (id: number, data: StoryboardItemAssetsUpdateReq) =>
     http.patch<never, StoryboardItem>(`/api/storyboard/item/${id}/assets`, data),
+
+  /** 更新分镜条目机位锚点；传 null 表示回到按机位角度自动匹配 */
+  updateItemCameraAnchor: (id: number, cameraAnchorId: string | null) =>
+    http.patch<never, StoryboardItem>(`/api/storyboard/item/${id}/camera-anchor`, {
+      cameraAnchorId,
+    }),
 
   /** 更新分镜条目首尾帧 */
   updateFrame: (id: number, data: StoryboardFrameUpdateReq) =>

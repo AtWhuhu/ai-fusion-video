@@ -49,7 +49,7 @@ public class StoryboardQueryToolExecutor implements ToolExecutor {
     @Override
     public String getToolDescription() {
         return """
-                查询分镜脚本的详情，包含所有分镜条目信息。
+                查询分镜脚本的详情，包含分镜条目信息。可通过 itemIds 只返回指定的镜头，避免一次性拉取全部分镜条目。
                 """;
     }
 
@@ -62,6 +62,13 @@ public class StoryboardQueryToolExecutor implements ToolExecutor {
                         "storyboardId": {
                             "type": "integer",
                             "description": "分镜ID"
+                        },
+                        "itemIds": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            },
+                            "description": "可选，分镜条目ID列表。传入后只返回这些镜头"
                         }
                     },
                     "required": ["storyboardId"]
@@ -79,6 +86,8 @@ public class StoryboardQueryToolExecutor implements ToolExecutor {
             }
 
             Storyboard storyboard = accessGuard.requireStoryboard(storyboardId, context.getUserId());
+            List<Long> filterItemIds = params.getJSONArray("itemIds") == null ? null
+                    : params.getJSONArray("itemIds").toList(Long.class);
             List<StoryboardEpisode> episodes = storyboardService.listEpisodes(storyboardId);
             List<StoryboardScene> scenes = storyboardService.listScenesByStoryboard(storyboardId);
 
@@ -101,7 +110,7 @@ public class StoryboardQueryToolExecutor implements ToolExecutor {
                 sceneOrder.put(scene.getId(), i);
                 sceneById.put(scene.getId(), scene);
             }
-            List<StoryboardItem> items = storyboardService.listItems(storyboardId).stream()
+            List<StoryboardItem> allItems = storyboardService.listItems(storyboardId).stream()
                     .sorted(Comparator
                             .comparingInt((StoryboardItem item) -> requireOrder(
                                     episodeOrder, item.getStoryboardEpisodeId(), "分镜镜头"))
@@ -110,6 +119,9 @@ public class StoryboardQueryToolExecutor implements ToolExecutor {
                             .thenComparing(StoryboardItem::getSortOrder)
                             .thenComparing(StoryboardItem::getId))
                     .toList();
+            List<StoryboardItem> items = filterItemIds == null || filterItemIds.isEmpty()
+                    ? allItems
+                    : allItems.stream().filter(item -> filterItemIds.contains(item.getId())).toList();
 
             JSONArray episodeList = new JSONArray();
             for (StoryboardEpisode episode : episodes) {

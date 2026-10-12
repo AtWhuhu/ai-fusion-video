@@ -49,6 +49,9 @@ function buildDefaultFramePrompt(
     item.dialogue ? `对白/旁白：${item.dialogue}` : null,
     item.cameraMovement ? `运镜：${item.cameraMovement}` : null,
     item.cameraAngle ? `机位角度：${item.cameraAngle}` : null,
+    item.spatialBlock
+      ? `空间锚点（人物与场景结构的相对位置以此为准，全场景恒定）：\n${item.spatialBlock}`
+      : null,
   ].filter(Boolean);
 
   const frameInstruction =

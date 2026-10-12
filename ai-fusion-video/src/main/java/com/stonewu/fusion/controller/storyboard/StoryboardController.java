@@ -6,6 +6,7 @@ import com.stonewu.fusion.controller.storyboard.vo.StoryboardEpisodeCreateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardEpisodeUpdateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardFrameUpdateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemAssetsUpdateReqVO;
+import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemCameraAnchorReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemCreateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemSortReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemUpdateReqVO;
@@ -17,6 +18,7 @@ import com.stonewu.fusion.entity.storyboard.Storyboard;
 import com.stonewu.fusion.entity.storyboard.StoryboardEpisode;
 import com.stonewu.fusion.entity.storyboard.StoryboardItem;
 import com.stonewu.fusion.entity.storyboard.StoryboardScene;
+import com.stonewu.fusion.service.storyboard.SceneBlockingService;
 import com.stonewu.fusion.service.storyboard.StoryboardService;
 import com.stonewu.fusion.service.storyboard.VideoComposeService;
 import com.stonewu.fusion.service.storyboard.dto.StoryboardItemAssetsPatch;
@@ -42,6 +44,7 @@ public class StoryboardController {
 
     private final StoryboardService storyboardService;
     private final VideoComposeService videoComposeService;
+    private final SceneBlockingService sceneBlockingService;
 
     // ========== 分镜脚本 ==========
 
@@ -192,19 +195,25 @@ public class StoryboardController {
     @Operation(summary = "获取分镜条目列表（按分镜）")
     @GetMapping("/{storyboardId}/items")
     public CommonResult<List<StoryboardItem>> listItems(@PathVariable Long storyboardId) {
-        return CommonResult.success(storyboardService.listItems(storyboardId));
+        List<StoryboardItem> items = storyboardService.listItems(storyboardId);
+        sceneBlockingService.fillSpatialContext(items);
+        return CommonResult.success(items);
     }
 
     @Operation(summary = "获取分镜条目列表（按场次）")
     @GetMapping("/scene/{sceneId}/items")
     public CommonResult<List<StoryboardItem>> listItemsByScene(@PathVariable Long sceneId) {
-        return CommonResult.success(storyboardService.listItemsByScene(sceneId));
+        List<StoryboardItem> items = storyboardService.listItemsByScene(sceneId);
+        sceneBlockingService.fillSpatialContext(items);
+        return CommonResult.success(items);
     }
 
     @Operation(summary = "获取分镜条目详情")
     @GetMapping("/item/{id}")
     public CommonResult<StoryboardItem> getItem(@PathVariable Long id) {
-        return CommonResult.success(storyboardService.getItemById(id));
+        StoryboardItem item = storyboardService.getItemById(id);
+        sceneBlockingService.resolveSpatialBlock(item);
+        return CommonResult.success(item);
     }
 
     @Operation(summary = "创建分镜条目")
@@ -219,6 +228,16 @@ public class StoryboardController {
     public CommonResult<StoryboardItem> updateItem(@Valid @RequestBody StoryboardItemUpdateReqVO reqVO) {
         StoryboardItem item = StoryboardConvert.INSTANCE.convert(reqVO);
         return CommonResult.success(storyboardService.updateItem(item));
+    }
+
+    @Operation(summary = "更新分镜条目机位锚点")
+    @PatchMapping("/item/{id}/camera-anchor")
+    public CommonResult<StoryboardItem> updateItemCameraAnchor(
+            @PathVariable Long id,
+            @RequestBody StoryboardItemCameraAnchorReqVO reqVO) {
+        StoryboardItem item = storyboardService.updateItemCameraAnchor(id, reqVO.getCameraAnchorId());
+        sceneBlockingService.resolveSpatialBlock(item);
+        return CommonResult.success(item);
     }
 
     @Operation(summary = "局部更新分镜条目资产关联")

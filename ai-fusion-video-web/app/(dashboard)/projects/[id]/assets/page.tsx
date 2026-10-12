@@ -12,6 +12,10 @@ import { MasterAssetForm, MasterAssetHeader } from "./_components/asset-master-p
 import { AssetItemTabs } from "./_components/asset-item-tabs";
 import { AssetItemWorkspace } from "./_components/asset-item-workspace";
 import { parseProperties } from "./_components/asset-types";
+import {
+  SceneBlockingEditor,
+  type SceneBlocking,
+} from "./_components/scene-blocking-editor";
 
 function enqueueAssetGeneration(
   projectId: number,
@@ -122,6 +126,24 @@ export default function ProjectAssetsPage() {
         properties: {
           ...parseProperties(selectedAsset.properties),
           setting: payload.description.trim(),
+        },
+      });
+      await loadAssets(true);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** 保存场景的空间锚点表（锚点 / 机位 / 角色默认站位） */
+  const saveSceneBlocking = async (blocking: SceneBlocking) => {
+    if (!selectedAsset) return;
+    setSaving(true);
+    try {
+      await assetApi.update({
+        id: selectedAsset.id,
+        properties: {
+          ...parseProperties(selectedAsset.properties),
+          blocking,
         },
       });
       await loadAssets(true);
@@ -297,6 +319,15 @@ export default function ProjectAssetsPage() {
                 onSave={saveAsset}
                 onDelete={() => void deleteAsset(selectedAsset)}
               />
+              {selectedAsset.type === "scene" && (
+                <SceneBlockingEditor
+                  key={`blocking-${selectedAsset.id}-${selectedAsset.updateTime}`}
+                  asset={selectedAsset}
+                  characters={assets.filter((asset) => asset.type === "character")}
+                  saving={saving}
+                  onSave={saveSceneBlocking}
+                />
+              )}
               <AssetItemTabs
                 items={selectedAsset.items}
                 assetType={selectedAsset.type}
