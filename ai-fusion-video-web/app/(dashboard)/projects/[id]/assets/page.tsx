@@ -305,11 +305,13 @@ export default function ProjectAssetsPage() {
         />
         <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[30px] border border-border/50 bg-card/75 shadow-[0_24px_70px_-42px_rgba(15,23,42,.45)]">
           {creatingAsset ? (
-            <MasterAssetForm
-              saving={saving}
-              onCancel={() => setCreatingAsset(false)}
-              onSubmit={createAsset}
-            />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <MasterAssetForm
+                saving={saving}
+                onCancel={() => setCreatingAsset(false)}
+                onSubmit={createAsset}
+              />
+            </div>
           ) : selectedAsset ? (
             <>
               <MasterAssetHeader
@@ -319,38 +321,40 @@ export default function ProjectAssetsPage() {
                 onSave={saveAsset}
                 onDelete={() => void deleteAsset(selectedAsset)}
               />
-              {selectedAsset.type === "scene" && (
-                <SceneBlockingEditor
-                  key={`blocking-${selectedAsset.id}-${selectedAsset.updateTime}`}
-                  asset={selectedAsset}
-                  characters={assets.filter((asset) => asset.type === "character")}
-                  saving={saving}
-                  onSave={saveSceneBlocking}
-                />
-              )}
-              <AssetItemTabs
-                items={selectedAsset.items}
-                assetType={selectedAsset.type}
-                selectedItemId={selectedItemId}
-                creating={creatingItem}
-                onSelect={(id) => {
-                  setCreatingItem(false);
-                  setSelectedItemId(id);
-                }}
-                onCreate={() => {
-                  setCreatingItem(true);
-                  setSelectedItemId(null);
-                }}
-                onGenerate={() =>
-                  enqueueAssetGeneration(
-                    projectId,
-                    [selectedAsset.id],
-                    selectedAsset.items.map((item) => item.id),
-                    `批量生成 ${selectedAsset.name} 的子资产图`,
-                  )
-                }
-              />
+              {/* 头部以下整体滚动：空间锚点编辑器内容很高，若放在固定高度 flex 列里
+                  会把下方子资产工作区挤成 0 并被 overflow-hidden 裁掉，导致无法滚动 */}
               <div className="min-h-0 flex-1 overflow-y-auto">
+                {selectedAsset.type === "scene" && (
+                  <SceneBlockingEditor
+                    key={`blocking-${selectedAsset.id}-${selectedAsset.updateTime}`}
+                    asset={selectedAsset}
+                    characters={assets.filter((asset) => asset.type === "character")}
+                    saving={saving}
+                    onSave={saveSceneBlocking}
+                  />
+                )}
+                <AssetItemTabs
+                  items={selectedAsset.items}
+                  assetType={selectedAsset.type}
+                  selectedItemId={selectedItemId}
+                  creating={creatingItem}
+                  onSelect={(id) => {
+                    setCreatingItem(false);
+                    setSelectedItemId(id);
+                  }}
+                  onCreate={() => {
+                    setCreatingItem(true);
+                    setSelectedItemId(null);
+                  }}
+                  onGenerate={() =>
+                    enqueueAssetGeneration(
+                      projectId,
+                      [selectedAsset.id],
+                      selectedAsset.items.map((item) => item.id),
+                      `批量生成 ${selectedAsset.name} 的子资产图`,
+                    )
+                  }
+                />
                 {creatingItem || selectedItem ? (
                   <AssetItemWorkspace
                     key={

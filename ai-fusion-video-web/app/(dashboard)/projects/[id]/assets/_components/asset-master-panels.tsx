@@ -53,7 +53,7 @@ export function MasterAssetHeader({
   };
 
   return (
-    <section className="border-b border-border/40 bg-gradient-to-br from-primary/[0.08] via-card/85 to-card/60 px-5 py-5">
+    <section className="shrink-0 border-b border-border/40 bg-gradient-to-br from-primary/[0.08] via-card/85 to-card/60 px-5 py-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

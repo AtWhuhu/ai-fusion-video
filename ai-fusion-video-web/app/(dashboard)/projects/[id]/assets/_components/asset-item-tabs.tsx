@@ -42,7 +42,7 @@ export function AssetItemTabs({
   };
 
   return (
-    <section className="min-w-0 border-b border-border/40 bg-card/50 px-5 pb-3.5 pt-3">
+    <section className="sticky top-0 z-10 min-w-0 border-b border-border/40 bg-card/95 px-5 pb-3.5 pt-3 backdrop-blur-sm">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h3 className="text-xs font-semibold">子资产</h3>
