@@ -8,6 +8,7 @@ import com.stonewu.fusion.service.ai.agentscope.skill.AgentScopeSkillRegistry;
 import com.stonewu.fusion.service.ai.agentscope.workspace.AgentWorkspaceBaseStore;
 import com.stonewu.fusion.service.ai.agentscope.permission.AgentToolPermissionPolicy;
 import com.stonewu.fusion.service.ai.agentscope.permission.ToolExecutionMode;
+import io.agentscope.core.model.ExecutionConfig;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.ToolkitConfig;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -110,6 +112,9 @@ public final class AgentScopeHarnessFactory {
         try {
             Toolkit toolkit = new Toolkit(ToolkitConfig.builder()
                     .parallel(true)
+                    .executionConfig(ExecutionConfig.builder()
+                            .timeout(Duration.ofMinutes(15))
+                            .build())
                     .build());
             toolResources = Objects.requireNonNull(
                     toolRegistry.register(spec, toolkit), "toolRegistry returned null resources");
