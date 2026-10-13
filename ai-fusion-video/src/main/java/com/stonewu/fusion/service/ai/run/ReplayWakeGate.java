@@ -1,6 +1,5 @@
 package com.stonewu.fusion.service.ai.run;
 
-import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
@@ -11,15 +10,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Coalesces lossy Redis hints without allowing them to become replay state. */
-@Slf4j
 final class ReplayWakeGate {
 
     private final AtomicBoolean dirty = new AtomicBoolean();
     private final AtomicLong highestHint = new AtomicLong();
     private final AtomicReference<Sinks.One<Long>> waiter = new AtomicReference<>();
-
-    // TODO(debug-replay): 临时诊断字段，用于定位 "Only one replay waiter may be active" 的两个来源；定位后连同下方 WARN/抓栈一并移除。
-    private final AtomicReference<String> waiterInstaller = new AtomicReference<>();
 
     void markDirty(long sequenceHint) {
         if (sequenceHint <= 0) {
@@ -29,7 +24,6 @@ final class ReplayWakeGate {
         dirty.set(true);
         Sinks.One<Long> waiting = waiter.getAndSet(null);
         if (waiting != null) {
-            waiterInstaller.set(null);
             waiting.tryEmitValue(sequenceHint);
         }
     }
@@ -38,7 +32,6 @@ final class ReplayWakeGate {
         dirty.set(true);
         Sinks.One<Long> waiting = waiter.getAndSet(null);
         if (waiting != null) {
-            waiterInstaller.set(null);
             waiting.tryEmitValue(highestHint.get());
         }
     }
@@ -57,21 +50,13 @@ final class ReplayWakeGate {
             }
 
             Sinks.One<Long> installed = Sinks.one();
-            String installerStack = captureStack();
             if (!waiter.compareAndSet(null, installed)) {
-                // TODO(debug-replay): 临时抓栈，定位并发 waiter 来源后移除。
-                log.warn("[ReplayWakeGate] Only one replay waiter may be active.\n"
-                                + "【冲突方】本次尝试安装 waiter：\n{}\n"
-                                + "【已存在】先前安装 waiter 且尚未清除：\n{}",
-                        installerStack, waiterInstaller.get());
                 return Mono.error(new IllegalStateException(
                         "Only one replay waiter may be active"));
             }
-            waiterInstaller.set(installerStack);
             ready = consumeDirty();
             if (ready != null) {
                 waiter.compareAndSet(installed, null);
-                waiterInstaller.compareAndSet(installerStack, null);
                 installed.tryEmitEmpty();
                 return Mono.just(ready);
             }
@@ -79,23 +64,18 @@ final class ReplayWakeGate {
             return Mono.firstWithSignal(
                             installed.asMono(),
                             Mono.delay(safeInterval).thenReturn(0L))
-                    .map(this::consumeAfterWake)
-                    .doFinally(ignored -> {
+                    // 关键：在把结果交给下游之前就清掉本 waiter。
+                    // replay 的 cycle 链是 drained.concatWith(next) 形式，上一段完成时
+                    // concat 会在同一线程同步发起下一轮 awaitDirtyOrPoll；若等到 doFinally
+                    // 才清 waiter，下一轮会撞上尚未清除的本 waiter，报
+                    // "Only one replay waiter may be active"，并行子 Agent 批量唤醒时必现。
+                    .map(sequenceHint -> {
                         waiter.compareAndSet(installed, null);
-                        waiterInstaller.compareAndSet(installerStack, null);
-                    });
+                        return consumeAfterWake(sequenceHint);
+                    })
+                    // 兜底：取消/异常等非正常终止路径下仍清一次（幂等）。
+                    .doFinally(ignored -> waiter.compareAndSet(installed, null));
         });
-    }
-
-    // TODO(debug-replay): 临时诊断方法，定位后移除。
-    private static String captureStack() {
-        StackTraceElement[] trace = Thread.currentThread().getStackTrace();
-        StringBuilder sb = new StringBuilder(Thread.currentThread().getName());
-        int limit = Math.min(trace.length, 18);
-        for (int i = 0; i < limit; i++) {
-            sb.append("\n    at ").append(trace[i]);
-        }
-        return sb.toString();
     }
 
     private Long consumeDirty() {
