@@ -34,7 +34,7 @@
 | # | 事项 | 状态 | 备注 |
 | --- | --- | --- | --- |
 | 3.1 | `build/anchors.json` → 7 个场景资产 `properties.blocking` | [x] | `to-blocking-sql.mjs` → `剑骨-blocking-update.sql`，`roles` 键由 C01 代号换算为角色资产 id，**已执行本地库**，核验 7 场景带 blocking、图片零丢失 |
-| 3.2 | `scene_expectation` 去重（回归纯画面期望） | [ ] | 一次性定向 UPDATE，不得触碰图片列。**建议等系统功能上线跑通后再做**——去重后锚点只由 `spatialBlock` 单一来源提供 |
+| 3.2 | `scene_expectation` 去重（回归纯画面期望） | [x] | 2026-10-13 改为代码层去重（替代原计划的数据层一次性 UPDATE）：`spatialBlock` 非空时，前端 `buildDefaultFramePrompt` 与 AI 工具 JSON 均先剥离 baked 锚点段。旧数据（剑骨 483 条）无需改库，新数据不受影响 |
 | 3.3 | 远程 quant-db 同步 | [ ] | 等主人指示 |
 | 3.4 | 重建前后端 docker 镜像并重启 | [ ] | 改动要在本地 8080 生效需重新出镜像；远程同理 |
 

@@ -6,6 +6,7 @@ import ImageInput from "@/components/dashboard/image-input";
 import { SafeImage } from "@/components/ui/safe-image";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveMediaUrl } from "@/lib/api/client";
+import { stripBakedSpatialAnchors } from "@/lib/scene-expectation";
 import { toastApiError } from "@/lib/api/toast-api-error";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -40,12 +41,16 @@ function buildDefaultFramePrompt(
       project?.artStyle,
     ].find((text) => text && text.trim()) || "高质量精细画面";
   const shotLabel = item.shotNumber || item.autoShotNumber || String(item.id);
+  // spatialBlock 已是唯一的空间约束来源：剥离 sceneExpectation 里历史 baked 的锚点段，避免双注入
+  const expectation = item.spatialBlock
+    ? stripBakedSpatialAnchors(item.sceneExpectation)
+    : (item.sceneExpectation ?? "");
   const parts = [
     `项目画风：${style}`,
     `镜头：${shotLabel}`,
     item.shotType ? `景别：${item.shotType}` : null,
     item.content ? `画面内容：${item.content}` : null,
-    item.sceneExpectation ? `画面期望：${item.sceneExpectation}` : null,
+    expectation ? `画面期望：${expectation}` : null,
     item.dialogue ? `对白/旁白：${item.dialogue}` : null,
     item.cameraMovement ? `运镜：${item.cameraMovement}` : null,
     item.cameraAngle ? `机位角度：${item.cameraAngle}` : null,

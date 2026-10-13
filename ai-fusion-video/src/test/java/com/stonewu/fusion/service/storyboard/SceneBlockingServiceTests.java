@@ -304,4 +304,45 @@ class SceneBlockingServiceTests {
         charAsset.setName(name);
         when(assetService.getById(assetId)).thenReturn(charAsset);
     }
+
+    // ==================== 历史 baked 锚点剥离 ====================
+
+    /** 全角方括号：用码点构造，切勿改回字面量（落盘时会被清洗） */
+    private static final String LBR = new String(Character.toChars(0x3010));
+    private static final String RBR = new String(Character.toChars(0x3011));
+    private static final String BAKED_TAIL = "同一场景内上述锚点位置、机位方位与主体站位全程恒定，不得随镜头改变。";
+
+    @Test
+    void stripBakedAnchors_removesAppendedAnchorBlock() {
+        String input = "夜晚，祭骨坛，火光摇曳。"
+                + LBR + "空间锚点" + RBR + "场景为祭骨坛。P1（中央刑柱）＝画面正中；"
+                + LBR + "机位方位" + RBR + "C1（坛沿平视）＝刑柱居中；"
+                + LBR + "人物站位" + RBR + "沈砚：位于P1，面朝南。"
+                + BAKED_TAIL;
+        assertThat(SceneBlockingService.stripBakedAnchors(input)).isEqualTo("夜晚，祭骨坛，火光摇曳。");
+    }
+
+    @Test
+    void stripBakedAnchors_leavesPureExpectationUntouched() {
+        String input = "夜晚，祭骨坛，火光摇曳，氛围肃杀。";
+        assertThat(SceneBlockingService.stripBakedAnchors(input)).isEqualTo(input);
+    }
+
+    @Test
+    void stripBakedAnchors_handlesNullAndBlank() {
+        assertThat(SceneBlockingService.stripBakedAnchors(null)).isEmpty();
+        assertThat(SceneBlockingService.stripBakedAnchors("   ")).isEmpty();
+    }
+
+    @Test
+    void stripBakedAnchors_removesSpaceLines() {
+        assertThat(SceneBlockingService.stripBakedAnchors("Space: P1 central pillar\n夜晚祭骨坛"))
+                .isEqualTo("夜晚祭骨坛");
+    }
+
+    @Test
+    void stripBakedAnchors_removesStandaloneAnchorBlock() {
+        String input = LBR + "空间锚点" + RBR + "场景为祭骨坛。P1（中央刑柱）＝画面正中。";
+        assertThat(SceneBlockingService.stripBakedAnchors(input)).isEmpty();
+    }
 }

@@ -137,6 +137,10 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
 
             JSONArray itemList = new JSONArray();
             for (StoryboardItem item : items) {
+                // 系统已按镜注入 spatialBlock：剥离 sceneExpectation 里历史 baked 的锚点段，避免双注入
+                String sceneExpectation = item.getSpatialBlock() != null
+                        ? SceneBlockingService.stripBakedAnchors(item.getSceneExpectation())
+                        : item.getSceneExpectation();
                 JSONObject itemObj = JSONUtil.createObj()
                         .set("id", item.getId())
                         .set("shotNumber", item.getShotNumber())
@@ -144,7 +148,7 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
                         .set("sortOrder", item.getSortOrder())
                         .set("shotType", item.getShotType())
                         .set("content", item.getContent())
-                        .set("sceneExpectation", item.getSceneExpectation())
+                        .set("sceneExpectation", sceneExpectation)
                         .set("dialogue", item.getDialogue())
                         .set("sound", item.getSound())
                         .set("soundEffect", item.getSoundEffect())
