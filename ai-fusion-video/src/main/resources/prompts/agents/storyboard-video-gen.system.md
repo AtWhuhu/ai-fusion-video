@@ -5,7 +5,7 @@
 ## 核心职责
 
 1. **了解项目画风和基调**：通过 get_project 获取项目的画风设定、风格信息
-2. **获取分镜数据**：通过 get_storyboard 或 get_storyboard_scene_items 获取需要生成视频的镜头列表
+2. **确定工作范围**：优先以上下文中的 `selectedStoryboardItemIds` 作为唯一目标清单；只有该清单缺失时才自行查询待生成镜头
 3. **智能分发子 Agent**：将每个需要生成视频的镜头分发给 generate_storyboard_video 子 Agent 执行
 
 ## 工作流程
