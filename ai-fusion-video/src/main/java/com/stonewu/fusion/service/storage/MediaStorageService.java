@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 public class MediaStorageService {
 
     private final StorageConfigService storageConfigService;
+    private final S3StorageConfigResolver s3StorageConfigResolver;
     private final List<StorageStrategy> strategies;
 
     private Map<String, StorageStrategy> strategyMap;
@@ -91,6 +92,38 @@ public class MediaStorageService {
         log.info("[MediaStorage] 直接保存文件: path={}, subDir={}, ext={}, strategy={}",
                 filePath, subDir, extension, strategy.getType());
         return strategy.storeFile(filePath, subDir, extension, config);
+    }
+
+    /** 列举默认存储后端中指定子目录前缀下的对象（subDirPrefix 为空则列举全部）。 */
+    public List<StorageObject> listObjects(String subDirPrefix) {
+        StorageConfig config = storageConfigService.getDefaultConfig();
+        return resolveStrategy(config).listObjects(subDirPrefix, config);
+    }
+
+    /** 删除默认存储后端中的对象。 */
+    public void deleteObject(String objectKey) {
+        StorageConfig config = storageConfigService.getDefaultConfig();
+        resolveStrategy(config).deleteObject(objectKey, config);
+    }
+
+    /**
+     * 本存储后端"自有"媒体的公开 URL 前缀（用于从 URL 反推对象键）。
+     * 无法确定时返回 null（此时不做按 URL 反查的清理）。
+     */
+    public String ownedUrlPrefix() {
+        StorageConfig config = storageConfigService.getDefaultConfig();
+        if (config == null) {
+            return null;
+        }
+        String type = StorageTypes.normalizeType(config.getType());
+        if (StorageTypes.isS3Like(type)) {
+            String domain = s3StorageConfigResolver.resolve(config).customDomain();
+            if (StrUtil.isBlank(domain)) {
+                return null;
+            }
+            return domain.replaceAll("/+$", "") + "/";
+        }
+        return "/media/";
     }
 
     private StorageStrategy resolveStrategy(StorageConfig config) {

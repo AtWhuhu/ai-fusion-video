@@ -7,6 +7,7 @@ import com.stonewu.fusion.service.storage.ResolvedS3StorageConfig;
 import com.stonewu.fusion.service.storage.S3ClientFactory;
 import com.stonewu.fusion.service.storage.S3StorageConfigResolver;
 import com.stonewu.fusion.service.storage.StorageStrategy;
+import com.stonewu.fusion.service.storage.StorageObject;
 import com.stonewu.fusion.service.storage.StorageUrlResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +18,18 @@ import okhttp3.ResponseBody;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -240,5 +247,48 @@ public class S3StorageStrategy implements StorageStrategy {
             case "mov" -> "video/quicktime";
             default -> "application/octet-stream";
         };
+    }
+
+    @Override
+    public List<StorageObject> listObjects(String subDirPrefix, StorageConfig config) {
+        ResolvedS3StorageConfig resolved = configResolver.resolve(config);
+        String prefix = buildListPrefix(resolved, subDirPrefix);
+        S3Client s3 = s3ClientFactory.getClient(resolved);
+        List<StorageObject> objects = new ArrayList<>();
+        for (ListObjectsV2Response page : s3.listObjectsV2Paginator(
+                ListObjectsV2Request.builder()
+                        .bucket(resolved.bucketName())
+                        .prefix(prefix)
+                        .build())) {
+            for (S3Object object : page.contents()) {
+                objects.add(new StorageObject(object.key(), object.size() == null ? 0L : object.size()));
+            }
+        }
+        return objects;
+    }
+
+    @Override
+    public void deleteObject(String objectKey, StorageConfig config) {
+        if (StrUtil.isBlank(objectKey)) {
+            return;
+        }
+        ResolvedS3StorageConfig resolved = configResolver.resolve(config);
+        S3Client s3 = s3ClientFactory.getClient(resolved);
+        s3.deleteObject(DeleteObjectRequest.builder()
+                .bucket(resolved.bucketName())
+                .key(objectKey)
+                .build());
+    }
+
+    /** 列举前缀 = basePath 前缀 + 子目录前缀（均归一化，去掉首尾斜杠）。 */
+    private String buildListPrefix(ResolvedS3StorageConfig config, String subDir) {
+        StringBuilder prefix = new StringBuilder();
+        if (StrUtil.isNotBlank(config.basePath())) {
+            prefix.append(config.basePath().replace("\\", "/").replaceAll("^/+|/+$", "")).append("/");
+        }
+        if (StrUtil.isNotBlank(subDir)) {
+            prefix.append(sanitizePath(subDir, "uploads").replaceAll("^/+|/+$", "")).append("/");
+        }
+        return prefix.toString();
     }
 }

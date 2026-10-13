@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.stonewu.fusion.entity.storage.StorageConfig;
 import com.stonewu.fusion.service.storage.StorageStrategy;
+import com.stonewu.fusion.service.storage.StorageObject;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -17,7 +18,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 /**
  * 本地文件存储策略
@@ -148,5 +152,49 @@ public class LocalStorageStrategy implements StorageStrategy {
         }
 
         return "bin";
+    }
+
+    @Override
+    public List<StorageObject> listObjects(String subDirPrefix, StorageConfig config) {
+        String basePath = resolveBasePath(config);
+        Path base = Paths.get(basePath).toAbsolutePath().normalize();
+        Path root = StrUtil.isNotBlank(subDirPrefix)
+                ? base.resolve(subDirPrefix.replace("\\", "/").replaceAll("^/+|/+$", ""))
+                : base;
+        List<StorageObject> objects = new ArrayList<>();
+        if (!Files.isDirectory(root)) {
+            return objects;
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            walk.filter(Files::isRegularFile).forEach(file -> {
+                String key = base.relativize(file.toAbsolutePath().normalize())
+                        .toString().replace("\\", "/");
+                try {
+                    objects.add(new StorageObject(key, Files.size(file)));
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException e) {
+            throw new RuntimeException("列举本地存储文件失败: " + e.getMessage(), e);
+        }
+        return objects;
+    }
+
+    @Override
+    public void deleteObject(String objectKey, StorageConfig config) {
+        if (StrUtil.isBlank(objectKey)) {
+            return;
+        }
+        String basePath = resolveBasePath(config);
+        Path base = Paths.get(basePath).toAbsolutePath().normalize();
+        Path target = base.resolve(objectKey).normalize();
+        if (!target.startsWith(base)) {
+            throw new RuntimeException("非法的对象键: " + objectKey);
+        }
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            throw new RuntimeException("删除本地存储文件失败: " + e.getMessage(), e);
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.stonewu.fusion.service.storage;
 import com.stonewu.fusion.entity.storage.StorageConfig;
 
 import java.nio.file.Path;
+import java.util.List;
 
 /**
  * 存储策略接口
@@ -47,4 +48,21 @@ public interface StorageStrategy {
      * @return 持久化后的可访问 URL
      */
     String storeFile(Path filePath, String subDir, String extension, StorageConfig config);
+
+    /**
+     * 列举存储后端中指定子目录前缀下的对象（用于媒体清理）。
+     *
+     * @param subDirPrefix 子目录前缀（如 {@code images}）；为空则列举配置根下全部对象
+     * @param config       存储配置
+     * @return 对象列表（对象键 + 大小）
+     */
+    List<StorageObject> listObjects(String subDirPrefix, StorageConfig config);
+
+    /**
+     * 删除存储后端中指定对象键的文件。
+     *
+     * @param objectKey 对象键（相对存储根的路径）
+     * @param config    存储配置
+     */
+    void deleteObject(String objectKey, StorageConfig config);
 }

@@ -24,12 +24,15 @@ import {
   getStorageProviderOption,
   renderEndpointTemplate,
   storageConfigApi,
+  mediaCleanupApi,
   STORAGE_PROVIDER_LABELS,
   STORAGE_PROVIDER_OPTIONS,
   STORAGE_TYPE_OPTIONS,
   STORAGE_TYPE_LABELS,
   type StorageConfig as StorageConfigType,
   type StorageConfigSaveReq,
+  type MediaCleanupScanResult,
+  type MediaCleanupPurgeResult,
 } from "@/lib/api/storage";
 import {
   Dialog,
@@ -108,6 +111,14 @@ interface StorageConfigDialogProps {
   onOpenChange: (open: boolean) => void;
   editingConfig: StorageConfigType | null;
   onSaved: () => void;
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 function StorageConfigDialog({ open, onOpenChange, editingConfig, onSaved }: StorageConfigDialogProps) {
@@ -602,6 +613,10 @@ export default function StoragePage() {
   const [storageLoading, setStorageLoading] = useState(true);
   const [storageDialogOpen, setStorageDialogOpen] = useState(false);
   const [editingStorageConfig, setEditingStorageConfig] = useState<StorageConfigType | null>(null);
+  const [cleanupScan, setCleanupScan] = useState<MediaCleanupScanResult | null>(null);
+  const [cleanupResult, setCleanupResult] = useState<MediaCleanupPurgeResult | null>(null);
+  const [cleanupScanning, setCleanupScanning] = useState(false);
+  const [cleanupPurging, setCleanupPurging] = useState(false);
 
   const loadStorageConfigs = useCallback(async () => {
     try {
@@ -638,6 +653,42 @@ export default function StoragePage() {
     } catch (err) {
       console.error("设置默认存储失败:", err);
       toastApiError(err, "设置默认存储失败");
+    }
+  };
+
+  const handleScanCleanup = async () => {
+    try {
+      setCleanupScanning(true);
+      setCleanupResult(null);
+      const result = await mediaCleanupApi.scan();
+      setCleanupScan(result);
+    } catch (err) {
+      console.error("扫描孤儿媒体失败:", err);
+      toastApiError(err, "扫描孤儿媒体失败");
+    } finally {
+      setCleanupScanning(false);
+    }
+  };
+
+  const handlePurgeCleanup = async () => {
+    if (!cleanupScan) return;
+    const ok = await confirm({
+      title: "清理孤儿媒体",
+      description: `将删除 ${cleanupScan.orphanCount} 个未被任何记录引用的文件（约 ${formatBytes(cleanupScan.orphanBytes)}），此操作不可撤销。`,
+      variant: "destructive",
+      confirmText: "确认清理",
+    });
+    if (!ok) return;
+    try {
+      setCleanupPurging(true);
+      const result = await mediaCleanupApi.execute();
+      setCleanupResult(result);
+      setCleanupScan(await mediaCleanupApi.scan());
+    } catch (err) {
+      console.error("清理孤儿媒体失败:", err);
+      toastApiError(err, "清理孤儿媒体失败");
+    } finally {
+      setCleanupPurging(false);
     }
   };
 
@@ -775,6 +826,73 @@ export default function StoragePage() {
                 </div>
               );
             })
+          )}
+        </div>
+      </motion.div>
+
+      {/* ========== 媒体清理 ========== */}
+      <motion.div variants={itemVariants} className="mt-10">
+        <div className="mb-3 px-1">
+          <h3 className={settingsTypography.sectionTitle}>媒体清理</h3>
+        </div>
+        <div className="rounded-xl border border-border/30 bg-card/50 backdrop-blur-sm p-4 space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            重新生图、删除资产或项目都不会自动回收存储桶里的旧文件。这里可扫描并删除「未被任何记录引用」的孤儿媒体文件，释放空间。请先扫描确认，再执行清理。
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleScanCleanup}
+              disabled={cleanupScanning || cleanupPurging}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                "border border-border/40 hover:border-primary/50 text-muted-foreground hover:text-primary",
+                (cleanupScanning || cleanupPurging) && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              {cleanupScanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              扫描孤儿文件
+            </button>
+            {cleanupScan && cleanupScan.orphanCount > 0 && (
+              <button
+                onClick={handlePurgeCleanup}
+                disabled={cleanupScanning || cleanupPurging}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  "border border-destructive/40 text-destructive hover:bg-destructive/10 hover:border-destructive/60",
+                  cleanupPurging && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {cleanupPurging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                清理 {cleanupScan.orphanCount} 个（{formatBytes(cleanupScan.orphanBytes)}）
+              </button>
+            )}
+          </div>
+
+          {cleanupScan && (
+            <div className="text-xs text-muted-foreground space-y-2">
+              <div>
+                存储共 {cleanupScan.totalObjects} 个对象 / {formatBytes(cleanupScan.totalBytes)}；孤儿 {cleanupScan.orphanCount} 个 / {formatBytes(cleanupScan.orphanBytes)}
+              </div>
+              {cleanupScan.sampleOrphans.length > 0 && (
+                <ul className="max-h-40 overflow-auto rounded-lg border border-border/20 bg-background/40 p-2 font-mono text-[10px] space-y-0.5">
+                  {cleanupScan.sampleOrphans.map((item) => (
+                    <li key={item.key} className="truncate">
+                      {item.key} · {formatBytes(item.size)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {cleanupScan.orphanCount === 0 && (
+                <div className="text-green-500">没有需要清理的孤儿文件。</div>
+              )}
+            </div>
+          )}
+
+          {cleanupResult && (
+            <div className="text-xs text-green-500">
+              已删除 {cleanupResult.deletedCount} 个，释放 {formatBytes(cleanupResult.deletedBytes)}
+              {cleanupResult.failedCount > 0 ? `；失败 ${cleanupResult.failedCount} 个` : ""}。
+            </div>
           )}
         </div>
       </motion.div>

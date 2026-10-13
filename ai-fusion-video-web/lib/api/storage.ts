@@ -219,3 +219,37 @@ export async function uploadAssistantInput(
 
   return http.post("/api/storage/assistant-upload", formData, { timeout: 0 });
 }
+
+// ============================================================
+// 媒体孤儿清理
+// ============================================================
+
+export interface MediaCleanupItem {
+  key: string;
+  size: number;
+}
+
+export interface MediaCleanupScanResult {
+  totalObjects: number;
+  totalBytes: number;
+  orphanCount: number;
+  orphanBytes: number;
+  sampleOrphans: MediaCleanupItem[];
+}
+
+export interface MediaCleanupPurgeResult {
+  deletedCount: number;
+  deletedBytes: number;
+  failedCount: number;
+  failedItems: MediaCleanupItem[];
+}
+
+/** 媒体孤儿清理：回收桶内未被任何记录引用的文件。scan 为只读预检，execute 才删除。 */
+export const mediaCleanupApi = {
+  async scan(): Promise<MediaCleanupScanResult> {
+    return http.post<never, MediaCleanupScanResult>("/api/system/media-cleanup/scan", null, { timeout: 0 });
+  },
+  async execute(): Promise<MediaCleanupPurgeResult> {
+    return http.post<never, MediaCleanupPurgeResult>("/api/system/media-cleanup/execute", null, { timeout: 0 });
+  },
+};
