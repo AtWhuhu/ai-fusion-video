@@ -1,20 +1,76 @@
 "use client";
 
-import { Film, Loader2, Sparkles, Table2, LayoutGrid, Menu, Info } from "lucide-react";
+import { Film, Loader2, Sparkles, Menu, Info } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { VideoPreviewDialog } from "@/components/dashboard/video-preview-dialog";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { toastApiError } from "@/lib/api/toast-api-error";
-import { storyboardApi } from "@/lib/api/storyboard";
+import {
+  storyboardApi,
+  type StoryboardFrameType,
+  type StoryboardItem,
+} from "@/lib/api/storyboard";
 import { StoryboardSidebar } from "./storyboard-sidebar";
 import { StoryboardRefPanel } from "./storyboard-ref-panel";
-import { StoryboardFrameReferenceDialog } from "./storyboard-frame-reference-dialog";
+import {
+  StoryboardFrameReferenceDialog,
+  type FrameNeighborCandidate,
+  type FrameNeighborFrame,
+} from "./storyboard-frame-reference-dialog";
+import { StoryboardItemEditorDialog } from "./storyboard-item-editor-dialog";
 import { EditItemAssetsDialog } from "./edit-assets-dialog";
 import type { useStoryboardWorkspace } from "../_hooks/use-storyboard-workspace";
 import { StoryboardComposeActions } from "./storyboard-compose-actions";
 import { StoryboardSceneList } from "./storyboard-scene-list";
+
+/**
+ * 计算某镜可参考的相邻镜头帧图（改造做连贯性镜头用）。
+ * 顺序按全剧镜头顺序取前后各一个，默认都先给对方的**首帧**（常见的用法是拿上一镜的首图微调出本镜），
+ * 有尾帧时弹窗里可以一键切换。只列出真的已经有图的帧，没图的邻居直接不出现。
+ */
+function buildNeighborCandidates(
+  items: StoryboardItem[],
+  target: StoryboardItem | null
+): FrameNeighborCandidate[] {
+  if (!target) return [];
+  const index = items.findIndex((entry) => entry.id === target.id);
+  if (index < 0) return [];
+  const shotLabelOf = (entry: StoryboardItem) =>
+    entry.shotNumber || entry.autoShotNumber || String(entry.id);
+  const collect = (
+    entry: StoryboardItem | undefined,
+    order: StoryboardFrameType[]
+  ): FrameNeighborFrame[] => {
+    if (!entry) return [];
+    const byType: Record<StoryboardFrameType, string | null | undefined> = {
+      first: entry.firstFrameImageUrl,
+      last: entry.lastFrameImageUrl,
+    };
+    return order
+      .filter((type) => Boolean(byType[type]))
+      .map((type) => ({ type, imageUrl: byType[type] as string }));
+  };
+  const candidates: FrameNeighborCandidate[] = [];
+  const prevFrames = collect(items[index - 1], ["first", "last"]);
+  if (prevFrames.length) {
+    candidates.push({
+      slot: "prev",
+      label: `上一镜 ${shotLabelOf(items[index - 1])}`,
+      frames: prevFrames,
+    });
+  }
+  const nextFrames = collect(items[index + 1], ["first", "last"]);
+  if (nextFrames.length) {
+    candidates.push({
+      slot: "next",
+      label: `下一镜 ${shotLabelOf(items[index + 1])}`,
+      frames: nextFrames,
+    });
+  }
+  return candidates;
+}
 
 export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeof useStoryboardWorkspace> }) {
 
@@ -33,10 +89,12 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     setEditAssetsOpen,
     editingItem,
     setEditingItem,
-    viewMode,
     isSidebarCollapsed,
-    handleSetViewMode,
     handleSetSidebarCollapsed,
+    detailItemId,
+    detailItem,
+    handleCloseItemDetail,
+    handleUpdateItemField,
     frameDialogItemId,
     frameDialogInitialType,
     sidebarSelection,
@@ -55,7 +113,6 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     submittingComposeEpisodeIds,
     activeSceneId,
     allItems,
-    selectedItem,
     frameDialogItem,
     activeSceneGroup,
     handleManualRefreshStoryboard,
@@ -78,6 +135,15 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 8 },
     visible: { opacity: 1, y: 0, transition: { duration: shouldReduceMotion ? 0 : 0.35, ease: [0.25, 0.46, 0.45, 0.94] } },
   };
+  /** 全屏编辑弹窗头部显示的场次名 */
+  const detailSceneLabel = (() => {
+    if (!detailItem) return undefined;
+    const group = sceneGroups.find((g) =>
+      g.items.some((item) => item.id === detailItem.id)
+    );
+    if (!group) return undefined;
+    return group.scene.sceneHeading || `场次 ${group.scene.sceneNumber || group.scene.id}`;
+  })();
   // ========== 渲染 ==========
 
   if (loading) {
@@ -222,16 +288,6 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
               onPreview={setComposedPreviewUrl}
             />
 
-            <div className="flex shrink-0 gap-2" role="group" aria-label="分镜视图">
-              <Button variant={viewMode === "table" ? "secondary" : "ghost"} size="sm"
-                onClick={() => handleSetViewMode("table")} aria-pressed={viewMode === "table"} title="表格视图">
-                <Table2 /><span className="hidden sm:inline">表格</span>
-              </Button>
-              <Button variant={viewMode === "card" ? "secondary" : "ghost"} size="sm"
-                onClick={() => handleSetViewMode("card")} aria-pressed={viewMode === "card"} title="卡片视图">
-                <LayoutGrid /><span className="hidden sm:inline">卡片</span>
-              </Button>
-            </div>
             {/* 右侧边栏触发器 */}
             <Sheet open={rightSheetOpen} onOpenChange={setRightSheetOpen}>
               <SheetTrigger
@@ -245,19 +301,10 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
                 <StoryboardRefPanel
                   storyboard={storyboard}
                   items={allItems}
-                  selectedItem={selectedItem}
                   activeSceneGroup={activeSceneGroup}
                   projectId={projectId}
                   project={project}
-                  assetLookup={assetLookup}
-                  onUpdateFrame={handleUpdateItemFrame}
-                  onGenerateFrame={handleGenerateItemFrame}
-                  onGenerateVideo={(item) => handleVideoGen(item.id)}
                   onBatchGenerateFrames={handleBatchGenerateSceneFrames}
-                  onEditAssets={(item) => {
-                    setEditingItem(item);
-                    setEditAssetsOpen(true);
-                  }}
                 />
               </SheetContent>
             </Sheet>
@@ -267,24 +314,15 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
         <StoryboardSceneList workspace={workspace} />
       </motion.div>
 
-      {/* 右栏：引用信息 */}
+      {/* 右栏：场次级操作与概览（镜头详情已并入双击编辑弹窗） */}
       <motion.div variants={sectionVariants} className="shrink-0 hidden 2xl:block">
       <StoryboardRefPanel
         storyboard={storyboard}
         items={allItems}
-        selectedItem={selectedItem}
         activeSceneGroup={activeSceneGroup}
         projectId={projectId}
         project={project}
-        assetLookup={assetLookup}
-        onUpdateFrame={handleUpdateItemFrame}
-        onGenerateFrame={handleGenerateItemFrame}
-        onGenerateVideo={(item) => handleVideoGen(item.id)}
         onBatchGenerateFrames={handleBatchGenerateSceneFrames}
-        onEditAssets={(item) => {
-          setEditingItem(item);
-          setEditAssetsOpen(true);
-        }}
       />
       </motion.div>
 
@@ -295,12 +333,35 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
         onClose={() => setComposedPreviewUrl(null)}
       />
 
+      <StoryboardItemEditorDialog
+        key={detailItemId ?? "closed"}
+        open={detailItemId !== null}
+        item={detailItem}
+        sceneLabel={detailSceneLabel}
+        projectId={projectId}
+        project={project}
+        assetLookup={assetLookup}
+        suspendDismiss={frameDialogItemId !== null || editAssetsOpen}
+        onClose={handleCloseItemDetail}
+        onUpdateField={handleUpdateItemField}
+        onUpdateFrame={handleUpdateItemFrame}
+        onGenerateFrame={handleGenerateItemFrame}
+        onGenerateVideo={(item) => handleVideoGen(item.id)}
+        onEditAssets={(item) => {
+          setEditingItem(item);
+          setEditAssetsOpen(true);
+        }}
+        onSceneBlockingSaved={() => void handleManualRefreshStoryboard()}
+        neighborCandidates={buildNeighborCandidates(allItems, detailItem)}
+      />
+
       <StoryboardFrameReferenceDialog
         key={`${frameDialogItemId ?? "closed"}-${frameDialogInitialType}`}
         open={frameDialogItemId !== null}
         item={frameDialogItem}
         project={project}
         initialFrameType={frameDialogInitialType}
+        neighborCandidates={buildNeighborCandidates(allItems, frameDialogItem)}
         onClose={handleCloseFrameDialog}
         onUpdateFrame={handleUpdateItemFrame}
         onGenerateFrame={handleGenerateItemFrame}

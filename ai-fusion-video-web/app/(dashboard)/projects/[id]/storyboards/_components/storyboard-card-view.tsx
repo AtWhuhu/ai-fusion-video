@@ -43,6 +43,7 @@ const CardItemUI = memo(
       idx: number;
       isSelected: boolean;
       onSelect?: () => void;
+      onOpenDetail?: () => void;
       onDelete?: (itemId: number) => void;
       onVideoGen?: (itemId: number) => void;
       onOpenFrameDialog?: (item: StoryboardItem, frameType: StoryboardFrameType) => void;
@@ -60,6 +61,7 @@ const CardItemUI = memo(
         idx,
         isSelected,
         onSelect,
+        onOpenDetail,
         onDelete,
         onVideoGen,
         onOpenFrameDialog,
@@ -91,6 +93,15 @@ const CardItemUI = memo(
           ref={ref}
           style={style}
           onClick={onSelect}
+          onDoubleClick={
+            isOverlay || !onOpenDetail
+              ? undefined
+              : (event) => {
+                  event.stopPropagation();
+                  onOpenDetail();
+                }
+          }
+          title={isOverlay ? undefined : "单击选中，双击打开全屏编辑"}
           className={cn(
             "rounded-xl overflow-hidden cursor-pointer relative bg-card",
             "transition-all duration-200 group flex flex-col",
@@ -128,6 +139,7 @@ const CardItemUI = memo(
                     }}
                     className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors hover:bg-black/40"
                     title="预览视频"
+                    onDoubleClick={(e) => e.stopPropagation()}
                   >
                     <Play className="h-8 w-8 text-white/90 fill-white/90" />
                   </button>
@@ -161,6 +173,7 @@ const CardItemUI = memo(
                 isDragging && "opacity-0"
               )}
               onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
             >
               <GripHorizontal className="h-4 w-4 text-white/90" />
             </div>
@@ -171,7 +184,10 @@ const CardItemUI = memo(
             </div>
 
             {/* 时长与删除操作 -> 右上角 */}
-            <div className="absolute top-2 right-2 z-20 flex items-center gap-2">
+            <div
+              className="absolute top-2 right-2 z-20 flex items-center gap-2"
+              onDoubleClick={(e) => e.stopPropagation()}
+            >
               {item.duration && (
                 <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/50 backdrop-blur-sm text-white/95 text-[10px]">
                   <Clock className="h-2.5 w-2.5 opacity-80" />
@@ -200,6 +216,7 @@ const CardItemUI = memo(
               <div
                 className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-0.5 p-0.5 rounded-md bg-black/50 backdrop-blur-sm z-20"
                 onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
               >
                 <button
                   onClick={() => setMediaMode("image")}
@@ -233,6 +250,7 @@ const CardItemUI = memo(
               <div
                 className="absolute bottom-2 left-2 flex items-center gap-1 z-20"
                 onClick={(e) => e.stopPropagation()}
+                onDoubleClick={(e) => e.stopPropagation()}
               >
                 {(["first", "last"] as StoryboardFrameType[]).map((frameType) => {
                   const label = frameType === "first" ? "首" : "尾";
@@ -273,6 +291,7 @@ const CardItemUI = memo(
                   e.stopPropagation();
                   onVideoGen(item.id);
                 }}
+                onDoubleClick={(e) => e.stopPropagation()}
                 className={cn(
                   "absolute bottom-2 right-2 p-1.5 rounded-md bg-black/40 backdrop-blur-sm",
                   "opacity-0 group-hover:opacity-100 transition-all z-20",
@@ -340,6 +359,7 @@ function SortableCardItem({
   idx,
   isSelected,
   onSelect,
+  onOpenDetail,
   onDelete,
   onVideoGen,
   onOpenFrameDialog,
@@ -349,6 +369,7 @@ function SortableCardItem({
   idx: number;
   isSelected: boolean;
   onSelect: () => void;
+  onOpenDetail?: () => void;
   onDelete?: (itemId: number) => void;
   onVideoGen?: (itemId: number) => void;
   onOpenFrameDialog?: (item: StoryboardItem, frameType: StoryboardFrameType) => void;
@@ -376,6 +397,7 @@ function SortableCardItem({
       idx={idx}
       isSelected={isSelected}
       onSelect={onSelect}
+      onOpenDetail={onOpenDetail}
       onDelete={onDelete}
       onVideoGen={onVideoGen}
       onOpenFrameDialog={onOpenFrameDialog}
@@ -396,6 +418,7 @@ export function StoryboardCardView({
   onReorderItems,
   onVideoGen,
   onOpenFrameDialog,
+  onOpenDetail,
 }: {
   items: StoryboardItem[];
   selectedItemId: number | null;
@@ -405,6 +428,8 @@ export function StoryboardCardView({
   onReorderItems?: (reordered: StoryboardItem[]) => void;
   onVideoGen?: (itemId: number) => void;
   onOpenFrameDialog?: (item: StoryboardItem, frameType: StoryboardFrameType) => void;
+  /** 双击卡片打开全屏编辑弹窗 */
+  onOpenDetail?: (item: StoryboardItem) => void;
 }) {
   const [activeId, setActiveId] = useState<number | null>(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -485,6 +510,9 @@ export function StoryboardCardView({
                 idx={idx}
                 isSelected={selectedItemId === item.id}
                 onSelect={() => onSelectItem(item.id)}
+                onOpenDetail={
+                  onOpenDetail ? () => onOpenDetail(item) : undefined
+                }
                 onDelete={onDeleteItem}
                 onVideoGen={onVideoGen}
                 onOpenFrameDialog={onOpenFrameDialog}

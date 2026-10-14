@@ -72,12 +72,14 @@ public class AiAgentRegistry {
                 registerEpisodeScriptCreatorAgent();
                 registerEpisodeStoryboardWriterAgent();
                 registerStoryboardAssetPreprocessorAgent();
+                registerSceneBlockingInferAgent();
                 registerAssetImageGenerationAgent();
                 registerAssetImageExecutorAgent();
                 registerStoryboardFrameGenAgent();
                 registerStoryboardFrameExecutorAgent();
                 registerStoryboardVideoGenAgent();
                 registerStoryboardVideoExecutorAgent();
+                registerPromptWriterAgent();
         }
 
         // ========== 各 Agent 定义 ==========
@@ -447,6 +449,34 @@ public class AiAgentRegistry {
         }
 
         /**
+         * 注册场景空间锚点推断 Agent
+         * <p>
+         * 通读某个场景在全片中出现的所有镜头，反推出场地的固定结构锚点、可用机位与在场角色站位，
+         * 写入场景资产的 {@code properties.blocking}。写入走专用的 {@code save_scene_blocking} ——
+         * {@code update_asset} 的 properties 在 schema 上只声明字符串值，塞不进嵌套的 anchors/cameras/roles。
+         * <p>
+         * 只读该场景的镜头与角色资产，不改分镜、不生成图片。
+         */
+        private void registerSceneBlockingInferAgent() {
+                register(AiAgentDefinition.builder()
+                                .type("scene_blocking_infer")
+                                .name("场景锚点推断")
+                                .toolNames(List.of(
+                                                "get_project", "get_asset", "list_project_assets",
+                                                "query_asset_items", "get_storyboard_scene_items",
+                                                "save_scene_blocking"))
+                                .systemPrompt(loadPrompt("scene-blocking-infer.system.md"))
+                                .instructionTemplate("""
+                                                <task_context>
+                                                <project_id>{projectId}</project_id>
+                                                <scene_asset_id>{sceneAssetId}</scene_asset_id>
+                                                </task_context>""")
+                                .defaultUserMessage("请通读场景资产 {sceneAssetId} 在全片中出现的所有镜头，推断出完整的空间锚点表并写入。")
+                                .enableTools(1)
+                                .build());
+        }
+
+        /**
          * 注册资产图片自动生成主 Agent
          * <p>
          * 负责获取项目画风、收集无图子资产、按子资产维度并行分发子 Agent。
@@ -627,6 +657,33 @@ public class AiAgentRegistry {
                                                 "get_generation_model_capabilities", "generate_video", "update_storyboard_item_video"))
                                 .systemPrompt(loadPrompt("storyboard-video-executor.system.md"))
                                 .instructionTemplate("")
+                                .enableTools(1)
+                                .build());
+        }
+
+        /**
+         * 注册提示词生成助手
+         * <p>
+         * 对话式重写/生成分镜镜头的提示词：读取选定镜头与项目画风，按目标模型
+         * 对应平台 Skill 的规范产出新提示词，用户确认后写回分镜。
+         */
+        private void registerPromptWriterAgent() {
+                register(AiAgentDefinition.builder()
+                                .type("prompt_writer")
+                                .name("提示词生成")
+                                .toolNames(List.of(
+                                                "get_project", "get_storyboard", "get_storyboard_scene_items",
+                                                "list_project_assets", "query_asset_items",
+                                                "get_generation_model_capabilities",
+                                                "update_storyboard_item"))
+                                .systemPrompt(loadPrompt("prompt-writer.system.md"))
+                                .instructionTemplate("""
+                                                <task_context>
+                                                <project_id>{projectId}</project_id>
+                                                <storyboard_id>{storyboardId}</storyboard_id>
+                                                <target_model_name>{targetModelName}</target_model_name>
+                                                <target_model_type>{targetModelType}</target_model_type>
+                                                </task_context>""")
                                 .enableTools(1)
                                 .build());
         }

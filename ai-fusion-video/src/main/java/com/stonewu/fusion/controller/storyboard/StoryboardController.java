@@ -6,6 +6,7 @@ import com.stonewu.fusion.controller.storyboard.vo.StoryboardEpisodeCreateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardEpisodeUpdateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardFrameUpdateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemAssetsUpdateReqVO;
+import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemBlockingSnapshotReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemCameraAnchorReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemCreateReqVO;
 import com.stonewu.fusion.controller.storyboard.vo.StoryboardItemSortReqVO;
@@ -236,6 +237,16 @@ public class StoryboardController {
             @PathVariable Long id,
             @RequestBody StoryboardItemCameraAnchorReqVO reqVO) {
         StoryboardItem item = storyboardService.updateItemCameraAnchor(id, reqVO.getCameraAnchorId());
+        sceneBlockingService.resolveSpatialBlock(item);
+        return CommonResult.success(item);
+    }
+
+    @Operation(summary = "更新分镜条目的 3D 布景快照")
+    @PatchMapping("/item/{id}/blocking-snapshot")
+    public CommonResult<StoryboardItem> updateItemBlockingSnapshot(
+            @PathVariable Long id,
+            @RequestBody StoryboardItemBlockingSnapshotReqVO reqVO) {
+        StoryboardItem item = storyboardService.updateItemBlockingSnapshot(id, reqVO.getImageUrl());
         sceneBlockingService.resolveSpatialBlock(item);
         return CommonResult.success(item);
     }

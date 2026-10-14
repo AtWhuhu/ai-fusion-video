@@ -152,6 +152,36 @@ export default function ProjectAssetsPage() {
     }
   };
 
+  /**
+   * 让 AI 通读本场景在全片中出现的所有镜头，反推出一整套空间锚点。
+   *
+   * 走 scene_blocking_infer 流水线：后端读镜头剧情 → 归纳 anchors/cameras/roles →
+   * 走 save_scene_blocking 整表替换 properties.blocking。会覆盖现有手工锚点，故先二次确认。
+   */
+  const inferSceneBlocking = async (asset: AssetWithItems) => {
+    const ok = await confirm({
+      title: "AI 推断场景锚点",
+      description: `将通读「${asset.name}」在全片中出现的所有镜头，推断出场地结构锚点、可用机位与角色站位。推断结果是整表替换，当前已配置的锚点会被覆盖。确定继续吗？`,
+      confirmText: "开始推断",
+    });
+    if (!ok) return;
+    const { addPipeline, setNotificationOpen } = usePipelineStore.getState();
+    addPipeline({
+      label: `推断场景锚点 · ${asset.name}`,
+      projectId,
+      request: {
+        agentType: "scene_blocking_infer",
+        toolExecutionMode: "FULL_ACCESS",
+        category: "pipeline",
+        title: `推断场景锚点 · ${asset.name}`,
+        projectId,
+        context: { sceneAssetId: asset.id },
+      },
+      onComplete: () => void loadAssets(true),
+    });
+    setNotificationOpen(true);
+  };
+
   const createAsset = async (name: string, type: string, description: string) => {
     if (!name.trim()) return;
     setSaving(true);
@@ -331,6 +361,8 @@ export default function ProjectAssetsPage() {
                     characters={assets.filter((asset) => asset.type === "character")}
                     saving={saving}
                     onSave={saveSceneBlocking}
+                    onAssetChanged={() => void loadAssets(true)}
+                    onInferBlocking={() => void inferSceneBlocking(selectedAsset)}
                   />
                 )}
                 <AssetItemTabs

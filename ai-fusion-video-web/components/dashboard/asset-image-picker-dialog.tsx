@@ -91,7 +91,11 @@ export function AssetImagePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[calc(100vh-2rem)] sm:max-h-[80vh] flex flex-col overflow-hidden bg-card/95 backdrop-blur-md rounded-2xl p-0 gap-0">
+      <DialogContent
+        // 层级契约：body 门户默认 z-50，DOM 顺序晚于分镜编辑弹窗（同为 z-50），自然盖在其上。
+        data-overlay-root
+        className="max-w-3xl max-h-[calc(100vh-2rem)] sm:max-h-[80vh] flex flex-col overflow-hidden bg-card/95 backdrop-blur-md rounded-2xl p-0 gap-0"
+      >
         <DialogHeader className="px-6 py-5 border-b border-border/30 shrink-0">
           <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
           <DialogDescription className="text-xs">

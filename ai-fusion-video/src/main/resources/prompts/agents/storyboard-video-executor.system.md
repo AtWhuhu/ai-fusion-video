@@ -6,15 +6,18 @@
 
 1. **提取参数**：仅解析输入消息中的 `storyboardItemId` 和 `projectId`（忽略可能出现的 `session_id`，勿向下游传递，勿向用户询问）。
 2. **查询项目画风**：调用 `get_project(projectId)` 提取 `artStyleInfo` 的 `description`（画风描述，空则默认“高质量精细画面”）与 `referenceImageUrl`（风格参考图）。
-3. **获取镜头与资产**：调用 `get_storyboard_scene_items` 获取目标镜头（`isCurrentTarget=true`）及前后镜头上下文。读取目标镜头的 `firstFrameImageUrl` 与 `lastFrameImageUrl` 作为显式首尾帧字段；收集目标镜头的 `characterRefs`、`propRefs` 和 `sceneRef` 中有 `imageUrl` 的子资产图作为参考图。
+3. **获取镜头与资产**：调用 `get_storyboard_scene_items` 获取目标镜头（`isCurrentTarget=true`）及前后镜头上下文。读取目标镜头的 `firstFrameImageUrl` 与 `lastFrameImageUrl` 作为显式首尾帧字段、**`spatialBlock` 作为空间锚点依据**；收集目标镜头的 `characterRefs`、`propRefs` 和 `sceneRef` 中有 `imageUrl` 的子资产图作为参考图。
    - **排序规则**：角色 → 道具 → 场景（有首帧图时场景可省略），最多 5 张。
    - **参考图语义**：`referenceImageUrls` 只用于风格、角色、道具、场景一致性，不承载首帧或尾帧语义。
+   - **3D 布景快照**：目标镜头若带 `blocking3dImageUrl`（场景 3D 布景渲染图），它是空间布局的直观依据 —— 主体与结构的相对位置、遮挡关系、地面透视都跟它走；支持参考图时**紧随首帧图之后加入 `referenceImageUrls`（优先于角色图）**，prompt 中按编号写明「仅参考图片N的空间布局与透视，不参考其材质与配色」。角色身份与服装已由首帧图与 `clothing` 文本双重锁定，槽位不够时角色图让位。
 4. **识别对白**：按规则将镜头中的 `dialogue` 转写为对白格式，融入 prompt。
 5. **查询模型能力**：调用 `get_generation_model_capabilities` 获取当前视频模型支持情况，并进行参数裁剪：
-   - `supportsFirstFrame=false`：不传 `firstFrameImageUrl`，在 prompt 中描述静态开场画面。
+   - `supportsFirstFrame=false` 且 `supportsReferenceImages=true`（多图参考模型，如 R2V 系列）：**把首帧图提升为 `referenceImageUrls` 的第 1 位**，语义是「以图片1为起始画面与构图基准」；风格参考图、角色参考图依次后移。prompt 开头写 `以图片1为起始画面，` 并按 §3.B 的 I2V 方式只描述动作与运镜。
+   - `supportsFirstFrame=false` 且 `supportsReferenceImages=false`：不传任何图片输入，在 prompt 中描述静态开场画面。
    - `supportsLastFrame=false`：不传 `lastFrameImageUrl`，在 prompt 中描述结尾状态。
    - `supportsReferenceImages=false`：不传 `referenceImageUrls`，在 prompt 中详述角色/场景/道具外观特征。
    - `supportsReferenceVideos/Audios=false`：不传对应字段。禁止对不支持的参数做重复重试。
+   - **张数上限**：`maxReferenceImages` 为 3 时，按「首帧图（若已提升）→ 场景 3D 快照 → 出场角色 → 场景 → 道具」优先级取舍；被裁掉的资产靠 prompt 中的外观描写兜底。
 6. **调用生成与更新**：
    - 首帧图只读取目标镜头的 `firstFrameImageUrl`；为空或模型不支持首帧时，不传 `firstFrameImageUrl`。
    - 尾帧图只读取目标镜头的 `lastFrameImageUrl`；仅当 `firstFrameImageUrl` 存在、模型支持首帧且支持尾帧时，才传 `lastFrameImageUrl`。
@@ -29,8 +32,9 @@
 
 ### A. 参考图引用
 - **有风格参考图**：其放在 `referenceImageUrls` 数组的第 1 位（prompt 最开头引用：`仅参考图片1的画面风格，绝不参考其中的任何物品和构图，`）。资产参考图从第 2 位起排（图片2、图片3...）。
+- **多图参考模型首帧提升**（`supportsFirstFrame=false` 且 `supportsReferenceImages=true`）：首帧图放在第 1 位（`以图片1为起始画面，人物位置、构图与场景布局都跟图片1走，`），风格参考图（若有）让到第 2 位（仍只参考画风），资产参考图再往后排。
 - **无风格参考图**：资产参考图从第 1 位起排（图片1、图片2...）。
-- **禁止混用**：首帧使用 `firstFrameImageUrl`，尾帧使用 `lastFrameImageUrl`，不得把首尾帧图片加入 `referenceImageUrls`。
+- **禁止混用**：首帧使用 `firstFrameImageUrl`，尾帧使用 `lastFrameImageUrl`，不得把首尾帧图片加入 `referenceImageUrls`。（多图参考模型的首帧提升是唯一例外：它不走 `firstFrameImageUrl` 字段，而是作为参考图第 1 位传入。）
 - **注意**：数组顺序必须与 prompt 中 `图片N` 编号严格一致。
 
 ### B. 对白识别与引用
@@ -48,11 +52,21 @@
 2. **纯白背景剥离**：由于角色/道具参考图是在纯白背景中生成的，在 prompt 中引用这些资产（`图片N`）时，**必须显式命令模型抠除并剥离参考图中的纯白背景，自然融入到镜头场景中**，例如：`参考图片2中的角色形象（抠除原本的纯白色背景，自然融入到下述场景中）`。严禁在视频中保留任何白色背景、白色切片或白色边框。
 
 ### B. 结构与格式要求
+- **服装与体型锁定（必做）**：角色资产引用（characterRefs）带有 `clothing`（服装）与 `appearance`（外貌/体型）字段 —— 引用某个角色（无论是否传了参考图）时，必须把该角色的 `clothing` 描述**逐字或近逐字**写进 prompt（颜色、材质、纹样一个都不能改），体型关键特征（身高体型比例）取自 `appearance`。同一角色跨镜头的服装描述必须完全一致，禁止即兴发挥改色改款。
 - 使用**中文**自然语言叙述，不堆砌关键词，篇幅 2-5 句（复杂场景不超过 8 句）。
 - **首尾帧自适应**：有首帧图（I2V 模式）时，只描述动作变化和运镜，不要重复描述静态内容；首尾帧都传入时，prompt 必须描述从首帧过渡到尾帧的动作、情绪、构图或运镜变化；无首帧图（T2V 模式）时，需完整描述画面静态和动态。
 - **运镜/景别标准转写**：
   - **运镜**：推 → 镜头推近 | 拉 → 镜头拉远 | 摇 → 水平摇移 | 移 → 平移跟随 | 跟 → 跟随主体 | 升 → 镜头升起 | 降 → 镜头降落 | 环绕 → 环绕旋转 | 甩 → 快速甩动 | 固定/空/不动 → 固定镜头
   - **景别**：远景 → 大全景 | 全景 → 全景画面 | 中景 → 中景呈现 | 近景 → 近景展示 | 特写 → 极近特写
+
+### C. 空间锚点 (必读)
+
+目标镜头携带 `spatialBlock` 字段 —— 系统已按本镜机位，把场景的位置锚点、机位方位与人物站位**投影成画面语言**后写成的一段散文（如「画面正中央偏上一根丈二高的石柱……中央刑柱的正下方紧贴柱身，一名黑衣少年背靠石柱、面朝画面下方」）。
+
+- 它是主体在画面中位置与朝向的**唯一依据**，编写 video prompt 时必须体现其中的空间关系与人物站位，以保证同一场景跨镜头位置一致。
+- 其中不会出现 `P1`／`C4` 这类编号；那是人机之间的约定，不要向模型透露，也不要自行编造。
+- 不要整段照抄，融入叙述，与运镜、动作描述合成连贯文本。
+- 字段为空表示该场景未配置锚点：不做空间约束，也不要臆造。
 
 ## 4. 示例
 

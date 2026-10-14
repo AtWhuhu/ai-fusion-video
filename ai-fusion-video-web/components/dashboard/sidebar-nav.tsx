@@ -14,8 +14,10 @@ import {
   ArrowLeft,
   Bot,
   HardDrive,
+  FolderOpen,
   ImagePlus,
   Video,
+  Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -60,6 +62,7 @@ const assetItems: SidebarItem[] = [
 const generationItems: SidebarItem[] = [
   { key: "image", label: "生图", icon: ImagePlus, href: "/generate/image", iconColor: "text-fuchsia-400" },
   { key: "video", label: "生视频", icon: Video, href: "/generate/video", iconColor: "text-cyan-400" },
+  { key: "prompt", label: "提示词生成", icon: Sparkles, href: "/generate/prompt", iconColor: "text-violet-400" },
 ];
 
 interface SidebarNavProps {
@@ -101,6 +104,7 @@ export function SidebarNav({
       { key: "ai-models", label: "AI 配置", icon: Bot, href: "/settings/ai-models", iconColor: "text-purple-400" },
       { key: "agents", label: "智能体配置", icon: Bot, href: "/settings/agents", iconColor: "text-violet-400" },
       { key: "storage", label: "存储配置", icon: HardDrive, href: "/settings/storage", iconColor: "text-orange-400" },
+      { key: "media", label: "媒体资产", icon: FolderOpen, href: "/settings/media", iconColor: "text-rose-400" },
     ]
     : [
       { key: "profile", label: "个人设置", icon: Users, href: "/settings/profile", iconColor: "text-blue-400" },

@@ -7,6 +7,7 @@ import { resolveMediaUrl } from "@/lib/api/client";
 import { toastApiError } from "@/lib/api/toast-api-error";
 import type { AssetWithItems, AssetItem } from "@/lib/api/asset";
 import type { StoryboardItem } from "@/lib/api/storyboard";
+import { SCENE_TOPDOWN_ITEM_TYPE } from "@/lib/asset-item-types";
 import { SafeImage } from "@/components/ui/safe-image";
 
 interface EditItemAssetsDialogProps {
@@ -78,10 +79,13 @@ export function EditItemAssetsDialog({
 
   const sceneItems = useMemo(() => {
     return sceneAssets.flatMap((asset) =>
-      (asset.items || []).map((subItem) => ({
-        ...subItem,
-        asset,
-      }))
+      (asset.items || [])
+        // 俯视图是布局示意图，不作为可选作参考的场景图（后端也会同步过滤，两边一致）
+        .filter((subItem) => subItem.itemType !== SCENE_TOPDOWN_ITEM_TYPE)
+        .map((subItem) => ({
+          ...subItem,
+          asset,
+        }))
     );
   }, [sceneAssets]);
 
@@ -435,7 +439,7 @@ export function EditItemAssetsDialog({
 
       {/* 图片预览 Modal */}
       {previewImage && (
-        <div className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="modal-overlay fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setPreviewImage(null)} />
           <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center gap-3 z-10">
             <button

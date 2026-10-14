@@ -7,6 +7,7 @@
    - `description`（画风描述）、`imagePrompt`（画风提示词，空则默认：`高质量精细画面，专业级插画，细节丰富`）、`referenceImageUrl`（风格参考图URL）。若 `hasArtStyle` 为 false，使用默认通用写实风。
 3. **查询子资产**：调用 `query_asset_items`。**必须且仅能使用 `assetId` 数字参数**，⚠️ **禁止使用 assetName 查询**。
 4. **定位目标**：匹配 `itemId` 确定 `itemType`（initial, three_view, variant）及资产信息（assetName, assetType, assetDescription 等）。
+   - ⚠️ 若 `itemType` 为 `topdown`（空间俯视图），**立即停止**：它由场景锚点数据在编辑器中渲染得出，不是生图产物；不要调用 `generate_image`，直接说明该子资产不支持生图。
 5. **获取初始图（衍生图）**：若 itemType 不是 `initial`，在 items 中定位 `itemType` 为 `initial` 的子资产并提取其 `imageUrl`。
 6. **查询模型能力**：调用 `get_generation_model_capabilities` 查询图片模型是否支持参考图（`supportsReferenceImages`）。
 7. **生图**：结合画风、参考图及资产描述编排中文 Prompt，调用 `generate_image` 生成**一张**图片。

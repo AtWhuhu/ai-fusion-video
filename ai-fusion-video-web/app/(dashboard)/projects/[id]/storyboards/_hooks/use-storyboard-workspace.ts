@@ -11,7 +11,7 @@ import { useProject } from "../../project-context";
 import { useStoryboardGeneration } from "./use-storyboard-generation";
 import { useStoryboardInvalidation } from "./use-storyboard-invalidation";
 import { reconcileStoryboardGroups } from "../storyboard-data";
-import { SIDEBAR_COLLAPSED_STORAGE_KEY, type ViewMode, type SidebarSelection, type SceneWithItems } from "../storyboard-types";
+import { SIDEBAR_COLLAPSED_STORAGE_KEY, type SidebarSelection, type SceneWithItems } from "../storyboard-types";
 
 export function useStoryboardWorkspace(projectId: number) {
   const { project } = useProject();
@@ -55,25 +55,16 @@ export function useStoryboardWorkspace(projectId: number) {
     loadProjectAssets();
   }, [loadProjectAssets]);
 
-  // 视图状态
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  // 视图状态：分镜页只有卡片视图，双击卡片打开全屏编辑弹窗
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // 加载本地用户偏好
   useEffect(() => {
-    const savedMode = localStorage.getItem("fusion-storyboard-view-mode");
-    if (savedMode === "table" || savedMode === "card") {
-      setViewMode(savedMode);
-    }
     setIsSidebarCollapsed(
       localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
     );
   }, []);
 
-  const handleSetViewMode = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem("fusion-storyboard-view-mode", mode);
-  }, []);
   const handleSetSidebarCollapsed = useCallback((collapsed: boolean) => {
     setIsSidebarCollapsed(collapsed);
     localStorage.setItem(
@@ -82,6 +73,8 @@ export function useStoryboardWorkspace(projectId: number) {
     );
   }, []);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  /** 全屏编辑弹窗当前打开的分镜条目 id；null 表示关闭 */
+  const [detailItemId, setDetailItemId] = useState<number | null>(null);
   const [frameDialogItemId, setFrameDialogItemId] = useState<number | null>(null);
   const [frameDialogInitialType, setFrameDialogInitialType] =
     useState<StoryboardFrameType>("first");
@@ -170,6 +163,9 @@ export function useStoryboardWorkspace(projectId: number) {
     : null;
   const frameDialogItem = frameDialogItemId
     ? allItems.find((i) => i.id === frameDialogItemId) || null
+    : null;
+  const detailItem = detailItemId
+    ? allItems.find((i) => i.id === detailItemId) || null
     : null;
 
   // 当前激活场次的分组（用于右侧面板展示场次资产）
@@ -561,6 +557,7 @@ export function useStoryboardWorkspace(projectId: number) {
         }))
       );
       if (selectedItemId === itemId) setSelectedItemId(null);
+      if (detailItemId === itemId) setDetailItemId(null);
       if (frameDialogItemId === itemId) setFrameDialogItemId(null);
     } catch (err) {
       console.error("删除条目失败:", err);
@@ -654,6 +651,17 @@ export function useStoryboardWorkspace(projectId: number) {
 
   /** 批量提交当前场次的首尾帧 AI 生成任务 */
   
+
+  /** 打开单个镜头的全屏编辑弹窗（卡片双击） */
+  const handleOpenItemDetail = useCallback((item: StoryboardItem) => {
+    setSelectedItemId(item.id);
+    setDetailItemId(item.id);
+  }, []);
+
+  /** 关闭全屏编辑弹窗 */
+  const handleCloseItemDetail = useCallback(() => {
+    setDetailItemId(null);
+  }, []);
 
   /** 打开单个镜头首尾帧编辑弹窗 */
   const handleOpenFrameDialog = useCallback(
@@ -781,11 +789,11 @@ export function useStoryboardWorkspace(projectId: number) {
     setEditAssetsOpen,
     editingItem,
     setEditingItem,
-    viewMode,
     isSidebarCollapsed,
-    handleSetViewMode,
     handleSetSidebarCollapsed,
     selectedItemId,
+    detailItemId,
+    detailItem,
     frameDialogItemId,
     frameDialogInitialType,
     sidebarSelection,
@@ -822,6 +830,8 @@ export function useStoryboardWorkspace(projectId: number) {
     handleDeleteItem,
     handleUpdateItemField,
     handleUpdateItemFrame,
+    handleOpenItemDetail,
+    handleCloseItemDetail,
     handleOpenFrameDialog,
     handleCloseFrameDialog,
     handleReorderItems,

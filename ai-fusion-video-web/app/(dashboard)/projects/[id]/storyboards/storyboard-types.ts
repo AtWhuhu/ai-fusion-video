@@ -1,7 +1,5 @@
 import type { StoryboardScene, StoryboardItem } from "@/lib/api/storyboard";
 
-export type ViewMode = "table" | "card";
-
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "fusion-storyboard-sidebar-collapsed";
 
 export interface SidebarSelection {

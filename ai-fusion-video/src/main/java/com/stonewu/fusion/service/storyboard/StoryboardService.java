@@ -496,6 +496,34 @@ public class StoryboardService {
     }
 
     /**
+     * 更新分镜条目的 3D 布景快照。
+     *
+     * <p>快照是从空间锚点 3D 导演台按本镜视角导出的渲染图，存放在
+     * {@code custom_data.blocking3dImageUrl}；生成视频时作为「场景 3D 布局参考图」
+     * 传给多图参考模型。传 null 或空白表示清除。</p>
+     *
+     * @param itemId  分镜条目ID
+     * @param imageUrl 快照图片 URL；空值表示清除
+     * @return 更新后的分镜条目
+     */
+    @CacheEvict(value = "storyboardItem", allEntries = true)
+    @Transactional
+    public StoryboardItem updateItemBlockingSnapshot(Long itemId, String imageUrl) {
+        StoryboardItem existing = getItemById(itemId);
+        JSONObject customData = readCustomData(existing.getCustomData());
+        String normalized = StringUtils.hasText(imageUrl) ? imageUrl.trim() : null;
+        if (normalized == null) {
+            customData.remove("blocking3dImageUrl");
+        } else {
+            customData.set("blocking3dImageUrl", normalized);
+        }
+        itemMapper.update(null, new UpdateWrapper<StoryboardItem>()
+                .eq("id", itemId)
+                .set("custom_data", customData.isEmpty() ? null : customData.toString()));
+        return itemMapper.selectById(itemId);
+    }
+
+    /**
      * 局部更新分镜条目的角色、场景和道具关联。
      *
      * <p>字段缺省时不修改；角色、道具空数组写入 JSON 空数组；场景显式 null 写入数据库 null。</p>
@@ -548,11 +576,16 @@ public class StoryboardService {
         UpdateWrapper<StoryboardItem> wrapper = new UpdateWrapper<StoryboardItem>()
                 .eq("id", itemId);
         if ("first".equals(normalizedFrameType)) {
-            wrapper.set("first_frame_image_url", normalizedImageUrl)
-                    .set("first_frame_prompt", normalizedPrompt);
+            wrapper.set("first_frame_image_url", normalizedImageUrl);
+            // prompt 传空表示「本次不改动提示词」：手动换图、图生图改造精修都不该把原提示词清掉
+            if (normalizedPrompt != null) {
+                wrapper.set("first_frame_prompt", normalizedPrompt);
+            }
         } else {
-            wrapper.set("last_frame_image_url", normalizedImageUrl)
-                    .set("last_frame_prompt", normalizedPrompt);
+            wrapper.set("last_frame_image_url", normalizedImageUrl);
+            if (normalizedPrompt != null) {
+                wrapper.set("last_frame_prompt", normalizedPrompt);
+            }
         }
         itemMapper.update(null, wrapper);
         return itemMapper.selectById(itemId);

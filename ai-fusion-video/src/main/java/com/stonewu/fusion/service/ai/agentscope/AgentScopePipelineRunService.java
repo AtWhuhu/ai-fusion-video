@@ -20,6 +20,7 @@ import com.stonewu.fusion.service.ai.AiAgentService;
 import com.stonewu.fusion.service.ai.AiModelService;
 import com.stonewu.fusion.service.ai.AiModelMultimodalCapabilities;
 import com.stonewu.fusion.service.ai.agentscope.context.ProjectContext;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
 import com.stonewu.fusion.service.ai.agentscope.kernel.AgentKernelSpec;
 import com.stonewu.fusion.service.ai.agentscope.kernel.AgentKernelSpecFactory;
 import com.stonewu.fusion.service.ai.agentscope.kernel.AgentPromptVariables;
@@ -99,6 +100,7 @@ public final class AgentScopePipelineRunService {
     private final ObjectMapper objectMapper;
     private final AgentScopeSkillRegistry skillRegistry;
     private final AgentUserSkillService userSkillService;
+    private final StoryboardBlockingRefInjector blockingRefs;
 
     public AgentScopePipelineRunService(
             AiModelService modelService,
@@ -119,7 +121,8 @@ public final class AgentScopePipelineRunService {
             AgentRuntimeSchedulers schedulers,
             ObjectMapper objectMapper,
             AgentScopeSkillRegistry skillRegistry,
-            AgentUserSkillService userSkillService) {
+            AgentUserSkillService userSkillService,
+            StoryboardBlockingRefInjector blockingRefs) {
         this.modelService = Objects.requireNonNull(modelService, "modelService must not be null");
         this.agentService = Objects.requireNonNull(agentService, "agentService must not be null");
         this.conversations = Objects.requireNonNull(conversations, "conversations must not be null");
@@ -144,6 +147,7 @@ public final class AgentScopePipelineRunService {
         this.skillRegistry = Objects.requireNonNull(skillRegistry, "skillRegistry must not be null");
         this.userSkillService = Objects.requireNonNull(
                 userSkillService, "userSkillService must not be null");
+        this.blockingRefs = Objects.requireNonNull(blockingRefs, "blockingRefs must not be null");
     }
 
     public Flux<AiChatStreamRespVO> stream(AiChatReqVO request, long userId) {
@@ -228,6 +232,7 @@ public final class AgentScopePipelineRunService {
             conversationId = IdUtil.fastSimpleUUID();
             request.setConversationId(conversationId);
         }
+        blockingRefs.registerFromContext(conversationId, request.getContext());
         AiAgentDefinition definition = definition(request.getAgentType());
         List<ActiveSkill> activeSkills = resolveActiveSkills(request.getEnabledSkills(), userId);
         request.setEnabledSkills(activeSkills.stream().map(ActiveSkill::name).toList());

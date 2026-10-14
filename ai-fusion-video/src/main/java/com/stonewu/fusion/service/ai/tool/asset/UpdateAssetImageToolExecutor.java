@@ -28,6 +28,9 @@ public class UpdateAssetImageToolExecutor implements ToolExecutor {
     /** 来源类型：AI生成 */
     private static final int SOURCE_AI_GENERATED = 2;
 
+    /** 场景的空间俯视布局图子资产类型：由锚点数据渲染，不接受生图覆盖 */
+    private static final String SCENE_TOPDOWN_ITEM_TYPE = "topdown";
+
     private final AssetService assetService;
 
     @Override
@@ -126,6 +129,13 @@ public class UpdateAssetImageToolExecutor implements ToolExecutor {
             if (targetItem == null) {
                 return JSONUtil.createObj().set("status", "error")
                         .set("message", "子资产ID " + itemId + " 不属于资产ID " + assetId).toString();
+            }
+
+            // 俯视图由锚点数据在编辑器里渲染，是「算出来的」而非「画出来的」：
+            // 模型每画一次都不一样，覆盖它会连带毁掉同一场景的跨镜一致性。
+            if (SCENE_TOPDOWN_ITEM_TYPE.equals(targetItem.getItemType())) {
+                return JSONUtil.createObj().set("status", "error")
+                        .set("message", "「空间俯视图」由场景锚点数据渲染生成，不接受生图覆盖").toString();
             }
 
             // 更新子资产图片

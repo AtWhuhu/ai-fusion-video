@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import {
   FileVideo2,
+  FolderOpen,
   ImageIcon,
   Images,
   Loader2,
@@ -21,6 +22,8 @@ interface GenerationAttachmentUploadMenuProps {
   uploading: boolean;
   disabledReason?: string;
   onSelect: (option: SimpleAttachmentUploadOption) => void;
+  /** 从存储库选择：传入后菜单追加「从存储库选择」入口，参数为当前可用的第一个附件类型 */
+  onPickFromStorage?: (option: SimpleAttachmentUploadOption) => void;
 }
 
 const OPTION_ICONS: Record<SimpleAttachmentKind, typeof ImageIcon> = {
@@ -36,10 +39,14 @@ export function GenerationAttachmentUploadMenu({
   uploading,
   disabledReason = "",
   onSelect,
+  onPickFromStorage,
 }: GenerationAttachmentUploadMenuProps) {
   const [open, setOpen] = useState(false);
   const selectableOptions = options.filter((option) => !option.disabledReason);
   const disabled = uploading || selectableOptions.length === 0;
+  const storageOption = selectableOptions[0];
+  const storageDisabled =
+    disabled || !onPickFromStorage || !storageOption;
   const title =
     disabledReason ||
     options.find((option) => option.disabledReason)?.disabledReason ||
@@ -111,6 +118,28 @@ export function GenerationAttachmentUploadMenu({
                   </Button>
                 );
               })}
+              {onPickFromStorage && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="default"
+                  role="menuitem"
+                  disabled={storageDisabled}
+                  title={
+                    storageDisabled
+                      ? title
+                      : `从存储库选择${storageOption.label}`
+                  }
+                  onClick={() => {
+                    setOpen(false);
+                    if (storageOption) onPickFromStorage(storageOption);
+                  }}
+                  className="w-full justify-start border-t border-border/20 rounded-t-none"
+                >
+                  <FolderOpen className="size-4" />
+                  <span>从存储库选择</span>
+                </Button>
+              )}
             </div>
           </PopoverPrimitive.Popup>
         </PopoverPrimitive.Positioner>

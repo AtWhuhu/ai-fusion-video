@@ -170,7 +170,8 @@ public class LocalStorageStrategy implements StorageStrategy {
                 String key = base.relativize(file.toAbsolutePath().normalize())
                         .toString().replace("\\", "/");
                 try {
-                    objects.add(new StorageObject(key, Files.size(file)));
+                    objects.add(new StorageObject(key, Files.size(file),
+                            Files.getLastModifiedTime(file).toInstant()));
                 } catch (IOException ignored) {
                 }
             });

@@ -1,16 +1,11 @@
 "use client";
 import { Camera, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { StoryboardTableView } from "./storyboard-table-view";
 import { StoryboardCardView } from "./storyboard-card-view";
 import type { useStoryboardWorkspace } from "../_hooks/use-storyboard-workspace";
 
 export function StoryboardSceneList({ workspace }: { workspace: ReturnType<typeof useStoryboardWorkspace> }) {
   const {
-    assetLookup,
-    setEditAssetsOpen,
-    setEditingItem,
-    viewMode,
     selectedItemId,
     sceneGroups,
     loadingScenes,
@@ -21,7 +16,7 @@ export function StoryboardSceneList({ workspace }: { workspace: ReturnType<typeo
     handleSelectItem,
     handleAddItem,
     handleDeleteItem,
-    handleUpdateItemField,
+    handleOpenItemDetail,
     handleOpenFrameDialog,
     handleReorderItems,
     handleVideoGen,
@@ -87,44 +82,18 @@ export function StoryboardSceneList({ workspace }: { workspace: ReturnType<typeo
                   </span>
                 </div>
 
-                {/* 场次内的镜头列表 */}
-                {viewMode === "table" ? (
-                  <StoryboardTableView
-                    items={items}
-                    selectedItemId={selectedItemId}
-                    onSelectItem={handleSelectItem}
-                    onUpdateItemField={handleUpdateItemField}
-                    onAddItem={() =>
-                      handleAddItem(scene.id, scene.episodeId)
-                    }
-                    onDeleteItem={handleDeleteItem}
-                    onReorderItems={(reordered) =>
-                      handleReorderItems(scene.id, reordered)
-                    }
-                    onVideoGen={handleVideoGen}
-                    onOpenFrameDialog={handleOpenFrameDialog}
-                    assetLookup={assetLookup}
-                    onEditAssets={(item) => {
-                      setEditingItem(item);
-                      setEditAssetsOpen(true);
-                    }}
-                  />
-                ) : (
-                  <StoryboardCardView
-                    items={items}
-                    selectedItemId={selectedItemId}
-                    onSelectItem={handleSelectItem}
-                    onAddItem={() =>
-                      handleAddItem(scene.id, scene.episodeId)
-                    }
-                    onDeleteItem={handleDeleteItem}
-                    onReorderItems={(reordered) =>
-                      handleReorderItems(scene.id, reordered)
-                    }
-                    onVideoGen={handleVideoGen}
-                    onOpenFrameDialog={handleOpenFrameDialog}
-                  />
-                )}
+                {/* 场次内的镜头列表：只有卡片视图，双击卡片打开全屏编辑弹窗 */}
+                <StoryboardCardView
+                  items={items}
+                  selectedItemId={selectedItemId}
+                  onSelectItem={handleSelectItem}
+                  onAddItem={() => handleAddItem(scene.id, scene.episodeId)}
+                  onDeleteItem={handleDeleteItem}
+                  onReorderItems={(reordered) => handleReorderItems(scene.id, reordered)}
+                  onVideoGen={handleVideoGen}
+                  onOpenFrameDialog={handleOpenFrameDialog}
+                  onOpenDetail={handleOpenItemDetail}
+                />
               </div>
             ))
           )}

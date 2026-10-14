@@ -5,8 +5,8 @@ import { usePipelineStore } from "@/lib/store/pipeline-store";
 import { scriptApi, type ScriptEpisode } from "@/lib/api/script";
 import { storyboardApi, type Storyboard, type StoryboardEpisode, type StoryboardItem, type StoryboardFrameType } from "@/lib/api/storyboard";
 import { toastApiError } from "@/lib/api/toast-api-error";
-import { buildDefaultBatchFramePrompt } from "../_components/storyboard-frame-reference-dialog";
-import type { BatchFrameGeneratePayload } from "../_components/storyboard-ref-panel";
+import { buildDefaultBatchFramePrompt, type FrameGenerateOptions } from "../_components/storyboard-frame-reference-dialog";
+import type { BatchFrameGeneratePayload } from "../_components/storyboard-batch-frame";
 import type { SceneWithItems } from "../storyboard-types";
 
 interface StoryboardGenerationOptions {
@@ -123,28 +123,41 @@ const handleGenerateEpisodeStoryboard = useCallback(async (episode: StoryboardEp
   ]);
 
 const handleGenerateItemFrame = useCallback(
-    async (item: StoryboardItem, frameType: StoryboardFrameType, prompt: string) => {
+    async (
+      item: StoryboardItem,
+      frameType: StoryboardFrameType,
+      prompt: string,
+      options?: FrameGenerateOptions
+    ) => {
       if (!storyboard) {
         throw new Error("缺少分镜上下文，无法生成首尾帧");
       }
       const frameLabel = frameType === "first" ? "首帧" : "尾帧";
       const shotLabel = item.shotNumber || item.autoShotNumber || String(item.id);
+      // refine = 以该镜当前已有的帧图作底图做图生图改造；缺省为重新生成
+      const isRefine = options?.mode === "refine";
+      const actionLabel = isRefine ? "改造" : "生成";
       try {
         setNotificationOpen(true);
         const pipelineId = addPipeline({
-          label: `生成镜头 ${shotLabel} ${frameLabel}`,
+          label: `${actionLabel}镜头 ${shotLabel} ${frameLabel}`,
           projectId,
           request: {
             agentType: "storyboard_frame_gen",
             toolExecutionMode: "FULL_ACCESS",
             category: "pipeline",
-            title: `生成镜头 ${shotLabel} ${frameLabel}`,
+            title: `${actionLabel}镜头 ${shotLabel} ${frameLabel}`,
             projectId,
             context: {
               selectedStoryboardItemIds: [item.id],
               storyboardId: storyboard.id,
               frameType,
               framePrompt: prompt,
+              ...(isRefine ? { frameMode: "refine" } : {}),
+              // 连贯性镜头：改造时额外要求参考上一镜／下一镜的某张帧图
+              ...(isRefine && options?.refNeighbors?.length
+                ? { frameRefNeighbors: options.refNeighbors }
+                : {}),
             },
           },
           onComplete: () => {

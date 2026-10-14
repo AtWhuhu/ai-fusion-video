@@ -70,6 +70,7 @@ export const agentTypeNames: Record<string, string> = {
   episode_script_creator: "分集剧本创作",
   episode_storyboard_writer: "分集分镜编写",
   storyboard_asset_preprocessor: "子资产预处理",
+  scene_blocking_infer: "场景锚点推断",
   asset_image_gen: "资产图片生成",
   asset_image_executor: "资产图片执行",
   storyboard_frame_gen: "分镜首尾帧生成",

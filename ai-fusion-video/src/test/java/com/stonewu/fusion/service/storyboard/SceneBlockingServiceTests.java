@@ -1,5 +1,9 @@
 package com.stonewu.fusion.service.storyboard;
 
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.stonewu.fusion.entity.asset.Asset;
 import com.stonewu.fusion.entity.asset.AssetItem;
 import com.stonewu.fusion.entity.storyboard.StoryboardItem;
@@ -10,18 +14,28 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * 场景空间锚点组装器的规则测试：机位选取、景别门控、锚点选取三条分支。
+ * 场景空间锚点组装器的规则测试：机位选取、景别门控、站位渲染、代号不泄漏。
  * <p>
  * 服务是无状态纯函数组装器，只依赖 {@link AssetService} 的两处读取，故用 Mockito 打桩即可覆盖，
  * 不需要起 Spring 容器。
+ * <p>
+ * 产出形态由主人定死：**只给模型纯画面语言，不得出现 P1／T1 这类代号，也不得分节贴标签**，
+ * 故本类专设 {@link #neverLeaksAnchorCodesToModel()} 与 {@link #rendersRealSceneTableAsPictureProse()}
+ * 两道闸。
  */
 @ExtendWith(MockitoExtension.class)
 class SceneBlockingServiceTests {
@@ -97,7 +111,7 @@ class SceneBlockingServiceTests {
         service.fillSpatialContext(list(item));
 
         // 场景锚点仍注入，人物站位因解析失败而缺席，整体不抛异常
-        assertThat(item.getSpatialBlock()).contains("中央刑柱").doesNotContain("【人物站位】");
+        assertThat(item.getSpatialBlock()).contains("画面正中偏上").doesNotContain("沈砚");
     }
 
     // ==================== 锚点选取 ====================
@@ -110,13 +124,13 @@ class SceneBlockingServiceTests {
         service.fillSpatialContext(list(item));
 
         assertThat(item.getSpatialBlock())
-                .contains("P1（中央刑柱）＝画面正中偏上")
-                .contains("T1（火把环）＝环绕刑柱脚下的火光")
+                .contains("画面正中偏上")
+                .contains("环绕刑柱脚下的火光")
                 .doesNotContain("偏殿角");
     }
 
     @Test
-    void includesPlainAnchorWhenReferencedByRolePosition() {
+    void inlinesPlainAnchorNameWhenReferencedByRolePosition() {
         stubScene(SCENE_ITEM_ID, SCENE_ASSET_ID, "祭骨坛",
                 blocking(ANCHORS, CAMERAS, "{\"" + HERO_ASSET_ID + "\":{\"at\":\"P9\",\"face\":\"面朝北\"}}"));
         stubCharacter(HERO_ITEM_ID, HERO_ASSET_ID, "沈砚");
@@ -124,7 +138,8 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).contains("偏殿角");
+        // 普通锚点不再单独出句，而是作为人物位置内联进人物句；用的是锚点名字，不是 P9
+        assertThat(item.getSpatialBlock()).contains("偏殿角").doesNotContain("P9");
     }
 
     // ==================== 机位选取 ====================
@@ -148,7 +163,7 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).contains("C2（坛下仰拍）");
+        assertThat(item.getSpatialBlock()).contains("刑柱自画面底部升起");
     }
 
     @Test
@@ -158,7 +173,7 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).contains("C2（坛下仰拍）");
+        assertThat(item.getSpatialBlock()).contains("刑柱自画面底部升起");
     }
 
     @Test
@@ -169,8 +184,8 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(arc, track));
 
-        assertThat(arc.getSpatialBlock()).contains("C3（环绕）");
-        assertThat(track.getSpatialBlock()).contains("C3（环绕）");
+        assertThat(arc.getSpatialBlock()).contains("刑柱始终居中");
+        assertThat(track.getSpatialBlock()).contains("刑柱始终居中");
     }
 
     @Test
@@ -180,7 +195,7 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).contains("C1（坛沿平视）");
+        assertThat(item.getSpatialBlock()).contains("刑柱居中，人物在画面中轴");
     }
 
     @Test
@@ -191,13 +206,13 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).contains("C2（坛下仰拍）");
+        assertThat(item.getSpatialBlock()).contains("刑柱自底部升起");
     }
 
     // ==================== 景别门控 ====================
 
     @Test
-    void extremeCloseUpOmitsEnvironmentStructureAndCamera() {
+    void extremeCloseUpOmitsEnvironmentStructureButKeepsRoleLock() {
         stubScene(SCENE_ITEM_ID, SCENE_ASSET_ID, "祭骨坛", blocking(ANCHORS, CAMERAS, ROLES));
         stubCharacter(HERO_ITEM_ID, HERO_ASSET_ID, "沈砚");
         StoryboardItem item = item(SCENE_ITEM_ID, "[" + HERO_ITEM_ID + "]", null, "平视", null, "特写");
@@ -207,10 +222,10 @@ class SceneBlockingServiceTests {
         assertThat(item.getSpatialBlock())
                 .contains("本镜为特写")
                 .contains("不表现任何建筑或环境结构")
-                .doesNotContain("【机位方位】")
-                .doesNotContain("中央刑柱");
-        // 特写仍锁人物站位
-        assertThat(item.getSpatialBlock()).contains("沈砚：位于P1");
+                .doesNotContain("中央刑柱")
+                .doesNotContain("环绕刑柱脚下的火光");
+        // 特写仍锁人物站位，且不给画面坐标（背景不许出现结构）
+        assertThat(item.getSpatialBlock()).contains("沈砚").doesNotContain("画面中央");
     }
 
     // ==================== 人物站位 ====================
@@ -224,12 +239,12 @@ class SceneBlockingServiceTests {
         service.fillSpatialContext(list(item));
 
         assertThat(item.getSpatialBlock())
-                .contains("【人物站位】沈砚：位于P1，面朝南，被缚于柱上。")
-                .contains("全程恒定，不得随镜头改变");
+                .contains("沈砚被缚于柱上，面朝南")
+                .contains("全程不变，不得随镜头改变");
     }
 
     @Test
-    void ignoresRoleMissingAtOrFace() {
+    void ignoresRoleMissingAtAndFace() {
         stubScene(SCENE_ITEM_ID, SCENE_ASSET_ID, "祭骨坛",
                 blocking(ANCHORS, CAMERAS, "{\"" + HERO_ASSET_ID + "\":{\"at\":\"\",\"face\":\"\"}}"));
         stubCharacter(HERO_ITEM_ID, HERO_ASSET_ID, "沈砚");
@@ -237,7 +252,7 @@ class SceneBlockingServiceTests {
 
         service.fillSpatialContext(list(item));
 
-        assertThat(item.getSpatialBlock()).doesNotContain("【人物站位】");
+        assertThat(item.getSpatialBlock()).doesNotContain("沈砚");
     }
 
     // ==================== 单条入口 ====================
@@ -251,7 +266,114 @@ class SceneBlockingServiceTests {
         String text = service.resolveSpatialBlock(item);
 
         assertThat(text).isEqualTo(item.getSpatialBlock());
-        assertThat(text).contains("祭骨坛").contains("沈砚：位于P1");
+        assertThat(text).contains("祭骨坛").contains("沈砚");
+    }
+
+    // ==================== 代号零泄漏 ====================
+
+    /** 分节标签与锚点代号一律不得出现在给模型的文本里 */
+    private static final Pattern ANCHOR_CODE = Pattern.compile("[PT]\\d+");
+
+    @Test
+    void neverLeaksAnchorCodesToModel() {
+        stubScene(SCENE_ITEM_ID, SCENE_ASSET_ID, "祭骨坛", blocking(ANCHORS, CAMERAS, ROLES));
+        stubCharacter(HERO_ITEM_ID, HERO_ASSET_ID, "沈砚");
+        StoryboardItem item = item(SCENE_ITEM_ID, "[" + HERO_ITEM_ID + "]", "{\"cameraAnchorId\":\"C2\"}", "平视", null, "近景");
+
+        service.fillSpatialContext(list(item));
+
+        String text = item.getSpatialBlock();
+        assertThat(ANCHOR_CODE.matcher(text).find()).as("不得出现 P1／T1 这类代号：%s", text).isFalse();
+        assertThat(text).doesNotContain("【").doesNotContain("空间锚点").doesNotContain("＝");
+    }
+
+    // ==================== 真实场景表端到端样张 ====================
+
+    /** 《剑骨》真实锚点表与资产对照表（未跟踪目录，缺失时跳过） */
+    private static final File ANCHORS_JSON = new File("../outputs/剑骨/build/anchors.json");
+    private static final File ASSETS_JSON = new File("../outputs/剑骨/build/assets.json");
+
+    @Test
+    void rendersRealSceneTableAsPictureProse() {
+        if (!ANCHORS_JSON.isFile() || !ASSETS_JSON.isFile()) {
+            return;
+        }
+        JSONObject table = JSONUtil.parseObj(FileUtil.readUtf8String(ANCHORS_JSON));
+        JSONObject assets = JSONUtil.parseObj(FileUtil.readUtf8String(ASSETS_JSON));
+
+        Map<String, JSONObject> sceneMeta = new LinkedHashMap<>();
+        for (Object node : assets.getJSONArray("scenes")) {
+            JSONObject scene = (JSONObject) node;
+            sceneMeta.put(scene.getStr("id"), scene);
+        }
+        Map<String, JSONObject> charMeta = new LinkedHashMap<>();
+        for (Object node : assets.getJSONArray("characters")) {
+            JSONObject character = (JSONObject) node;
+            charMeta.put(character.getStr("id"), character);
+        }
+
+        StringBuilder report = new StringBuilder();
+        JSONObject scenes = table.getJSONObject("scenes");
+        for (String sceneId : scenes.keySet()) {
+            JSONObject scene = scenes.getJSONObject(sceneId);
+            JSONObject meta = sceneMeta.get(sceneId);
+            if (meta == null) {
+                continue;
+            }
+            List<StoryboardItem> items = stubRealScene(sceneId, scene, meta, charMeta);
+            service.fillSpatialContext(items);
+            for (StoryboardItem item : items) {
+                String text = item.getSpatialBlock();
+                String cameraId = JSONUtil.parseObj(item.getCustomData()).getStr("cameraAnchorId");
+                report.append("\n### ").append(sceneId).append('/').append(cameraId).append('\n')
+                        .append(text).append('\n');
+                assertThat(text).as("有场景锚点就必须产出文本").isNotBlank();
+                assertThat(ANCHOR_CODE.matcher(text).find())
+                        .as("%s/%s 泄漏了锚点代号：%s", sceneId, cameraId, text).isFalse();
+                assertThat(text).doesNotContain("【");
+            }
+        }
+        FileUtil.writeString(report.toString(), new File("target/scene-blocking-sample.txt"), StandardCharsets.UTF_8);
+    }
+
+    /** 按真实场景表打桩，逐机位造一个分镜条目 */
+    private List<StoryboardItem> stubRealScene(String sceneId, JSONObject scene, JSONObject meta,
+            Map<String, JSONObject> charMeta) {
+        long sceneItemId = meta.getLong("itemId");
+        long sceneAssetId = meta.getLong("assetId");
+        String sceneName = meta.getStr("name");
+
+        JSONObject roles = new JSONObject();
+        JSONArray characterIds = new JSONArray();
+        JSONObject blocking = scene.getJSONObject("blocking");
+        if (blocking != null) {
+            for (String charCode : blocking.keySet()) {
+                JSONObject character = charMeta.get(charCode);
+                if (character == null) {
+                    continue;
+                }
+                roles.set(String.valueOf(character.getLong("assetId")), blocking.getJSONObject(charCode));
+                characterIds.add(character.getLong("itemId"));
+                stubCharacter(character.getLong("itemId"), character.getLong("assetId"), character.getStr("name"));
+            }
+        }
+
+        JSONObject payload = new JSONObject();
+        payload.set("opening", scene.getStr("opening"));
+        payload.set("anchors", scene.getJSONArray("anchors"));
+        payload.set("cameras", scene.getJSONArray("cameras"));
+        payload.set("roles", roles);
+        JSONObject properties = new JSONObject();
+        properties.set("blocking", payload);
+        stubScene(sceneItemId, sceneAssetId, sceneName, properties.toString());
+
+        List<StoryboardItem> items = new ArrayList<>();
+        for (Object node : scene.getJSONArray("cameras")) {
+            String cameraId = ((JSONObject) node).getStr("id");
+            items.add(item(sceneItemId, characterIds.toString(),
+                    "{\"cameraAnchorId\":\"" + cameraId + "\"}", "平视", null, "中景"));
+        }
+        return items;
     }
 
     // ==================== 夹具 ====================

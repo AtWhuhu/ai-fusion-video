@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stonewu.fusion.service.ai.ToolExecutionContext;
 import com.stonewu.fusion.service.ai.ToolExecutor;
 import com.stonewu.fusion.service.ai.agentscope.context.AgentRunContext;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
+import com.stonewu.fusion.service.storyboard.StoryboardService;
 import com.stonewu.fusion.service.ai.agentscope.context.CancellationContext;
 import com.stonewu.fusion.service.ai.agentscope.tool.AgentScopeToolSchema;
 import com.stonewu.fusion.service.ai.run.RunLeaseGuard;
@@ -47,7 +49,8 @@ class AgentScopeToolAdapterTests {
                         "asset_query"),
                 Schedulers.immediate(),
                 leaseGuard,
-                new ObjectMapper());
+                new ObjectMapper(),
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
 
         ToolUseBlock toolUseBlock = ToolUseBlock.builder()
                 .id("call-123")
@@ -94,7 +97,8 @@ class AgentScopeToolAdapterTests {
                         "asset_query"),
                 Schedulers.immediate(),
                 leaseGuard,
-                new ObjectMapper());
+                new ObjectMapper(),
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
         ToolUseBlock toolUseBlock = ToolUseBlock.builder()
                 .id("call-error")
                 .name("asset_query")

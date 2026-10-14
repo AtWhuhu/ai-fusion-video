@@ -203,13 +203,17 @@ export interface StoryboardItemUpdateReq {
   content?: string;
   sceneExpectation?: string;
   dialogue?: string;
+  sound?: string;
   soundEffect?: string;
   music?: string;
   cameraMovement?: string;
   cameraAngle?: string;
+  cameraEquipment?: string;
+  focalLength?: string;
   transition?: string;
   duration?: number;
   sortOrder?: number;
+  remark?: string;
   imageUrl?: string;
   firstFrameImageUrl?: string | null;
   lastFrameImageUrl?: string | null;
@@ -356,6 +360,12 @@ export const storyboardApi = {
   updateItemCameraAnchor: (id: number, cameraAnchorId: string | null) =>
     http.patch<never, StoryboardItem>(`/api/storyboard/item/${id}/camera-anchor`, {
       cameraAnchorId,
+    }),
+
+  /** 更新分镜条目的 3D 布景快照；传 null 表示清除 */
+  updateItemBlockingSnapshot: (id: number, imageUrl: string | null) =>
+    http.patch<never, StoryboardItem>(`/api/storyboard/item/${id}/blocking-snapshot`, {
+      imageUrl,
     }),
 
   /** 更新分镜条目首尾帧 */

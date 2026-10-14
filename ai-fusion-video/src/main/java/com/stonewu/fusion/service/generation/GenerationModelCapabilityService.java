@@ -184,6 +184,20 @@ public class GenerationModelCapabilityService {
         validateVideoTask(model, task, aiModelMetadataResolver.resolvePlatform(model));
     }
 
+    /**
+     * 该模型是否声明「首帧／首尾帧模式」与「多模态参考模式」互斥。
+     *
+     * <p>调用方在往已有首帧的请求里追加参考图之前必须先问这里，
+     * 否则会把一个原本合法的调用推成校验失败。
+     */
+    public boolean hasExclusiveInputModes(AiModel model) {
+        if (model == null) {
+            return false;
+        }
+        return Boolean.TRUE.equals(getBoolean(getMergedModelConfig(model),
+                "exclusiveInputModes", "mutuallyExclusiveInputModes"));
+    }
+
     public void validateVideoTask(AiModel model, VideoTask task, String platform) {
         if (model == null || task == null) {
             return;

@@ -31,6 +31,7 @@ import type {
 } from "./generation-types";
 import { GenerationAttachmentUploadMenu } from "./generation-attachment-upload-menu";
 import { GenerationQuickSettings } from "./generation-quick-settings";
+import { GenerationStoragePickerDialog } from "./generation-storage-picker-dialog";
 
 const MEDIA_UPLOAD_CONFIG: Record<
   SimpleAttachmentMediaType,
@@ -89,6 +90,9 @@ export function GenerationSimpleComposer({
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
+  /** 「从存储库选择」弹窗：记录要填充的附件类型 */
+  const [storagePicker, setStoragePicker] =
+    useState<SimpleAttachmentUploadOption | null>(null);
   const prompt = form.prompt;
   const imageAttachmentCount = attachments.filter(
     (attachment) => attachment.mediaType === "image",
@@ -270,6 +274,7 @@ export function GenerationSimpleComposer({
               uploading={uploading}
               disabledReason={attachmentDisabledReason}
               onSelect={handleSelectUpload}
+              onPickFromStorage={setStoragePicker}
             />
             <GenerationQuickSettings
               mode={mode}
@@ -348,6 +353,20 @@ export function GenerationSimpleComposer({
             selectedUploadOptionRef.current || undefined,
           )
         }
+      />
+
+      {/* 从存储库选择附件 */}
+      <GenerationStoragePickerDialog
+        open={storagePicker !== null}
+        onOpenChange={(next) => {
+          if (!next) setStoragePicker(null);
+        }}
+        mediaType={storagePicker?.mediaType ?? "image"}
+        onSelect={(url) => {
+          if (!storagePicker) return;
+          onAddAttachments([url], storagePicker.kind);
+          setStoragePicker(null);
+        }}
       />
     </div>
   );

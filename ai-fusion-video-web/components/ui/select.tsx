@@ -78,7 +78,9 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
-        className="isolate z-50"
+        // 承载层必须始终高于业务弹窗（全屏编辑 8000 / 首尾帧 9000 / 子页弹窗 10000+），
+        // 否则 Select 会弹出在弹窗背后，表现为「点触发器没反应」。
+        className="isolate z-[100000]"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"

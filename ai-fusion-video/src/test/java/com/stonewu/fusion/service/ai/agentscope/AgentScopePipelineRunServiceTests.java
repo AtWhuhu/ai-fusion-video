@@ -13,6 +13,8 @@ import com.stonewu.fusion.service.ai.AgentMessageService;
 import com.stonewu.fusion.service.ai.AiAgentService;
 import com.stonewu.fusion.service.ai.AiModelService;
 import com.stonewu.fusion.service.ai.agentscope.context.AgentScopeRuntimeContextRequest;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
+import com.stonewu.fusion.service.storyboard.StoryboardService;
 import com.stonewu.fusion.service.ai.agentscope.kernel.AgentKernelSpec;
 import com.stonewu.fusion.service.ai.agentscope.kernel.AgentKernelSpecFactory;
 import com.stonewu.fusion.service.ai.agentscope.message.AgentScopeMessageMapper;
@@ -148,7 +150,8 @@ class AgentScopePipelineRunServiceTests {
                 schedulers,
                 new ObjectMapper(),
                 skillRegistry,
-                userSkillService);
+                userSkillService,
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
         AiChatReqVO request = new AiChatReqVO()
                 .setConversationId("conversation-1")
                 .setMessage("hello harness")
@@ -269,7 +272,8 @@ class AgentScopePipelineRunServiceTests {
                 schedulers,
                 new ObjectMapper(),
                 skillRegistry,
-                userSkillService);
+                userSkillService,
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
 
         StepVerifier.create(service.startContinuation("conversation-1", 42L))
                 .assertNext(started -> assertThat(started.conversationId())
@@ -333,7 +337,8 @@ class AgentScopePipelineRunServiceTests {
                 schedulers,
                 new ObjectMapper(),
                 mock(AgentScopeSkillRegistry.class),
-                mock(AgentUserSkillService.class));
+                mock(AgentUserSkillService.class),
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
 
         StepVerifier.create(service.startContinuation("conversation-1", 42L))
                 .expectErrorSatisfies(error -> assertThat(error)

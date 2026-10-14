@@ -261,7 +261,8 @@ public class S3StorageStrategy implements StorageStrategy {
                         .prefix(prefix)
                         .build())) {
             for (S3Object object : page.contents()) {
-                objects.add(new StorageObject(object.key(), object.size() == null ? 0L : object.size()));
+                objects.add(new StorageObject(object.key(), object.size() == null ? 0L : object.size(),
+                        object.lastModified()));
             }
         }
         return objects;

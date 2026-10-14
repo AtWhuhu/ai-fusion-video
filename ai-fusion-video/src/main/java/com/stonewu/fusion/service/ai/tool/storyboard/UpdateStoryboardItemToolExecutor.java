@@ -33,7 +33,7 @@ public class UpdateStoryboardItemToolExecutor implements ToolExecutor {
 
     @Override
     public String getToolDescription() {
-        return "通用更新分镜镜头的画面、声音、对白、运镜、素材关联、排序和状态字段。首尾帧可继续使用专用工具。";
+        return "通用更新分镜镜头的画面、声音、对白、运镜、素材关联、排序和状态字段，也可写入首帧提示词、尾帧提示词与视频提示词。首尾帧图片请继续使用专用工具。";
     }
 
     @Override
@@ -50,6 +50,8 @@ public class UpdateStoryboardItemToolExecutor implements ToolExecutor {
                         "videoUrl": {"type": "string", "description": "镜头视频URL"},
                         "generatedImageUrl": {"type": "string", "description": "生成图片URL"},
                         "generatedVideoUrl": {"type": "string", "description": "生成视频URL"},
+                        "firstFramePrompt": {"type": "string", "description": "首帧提示词"},
+                        "lastFramePrompt": {"type": "string", "description": "尾帧提示词"},
                         "videoPrompt": {"type": "string", "description": "视频提示词"},
                         "shotType": {"type": "string", "description": "景别"},
                         "duration": {"type": "number", "description": "镜头时长"},
@@ -117,6 +119,12 @@ public class UpdateStoryboardItemToolExecutor implements ToolExecutor {
         }
         if (params.containsKey("generatedVideoUrl")) {
             item.setGeneratedVideoUrl(params.getStr("generatedVideoUrl"));
+        }
+        if (params.containsKey("firstFramePrompt")) {
+            item.setFirstFramePrompt(params.getStr("firstFramePrompt"));
+        }
+        if (params.containsKey("lastFramePrompt")) {
+            item.setLastFramePrompt(params.getStr("lastFramePrompt"));
         }
         if (params.containsKey("videoPrompt")) item.setVideoPrompt(params.getStr("videoPrompt"));
         if (params.containsKey("shotType")) item.setShotType(params.getStr("shotType"));

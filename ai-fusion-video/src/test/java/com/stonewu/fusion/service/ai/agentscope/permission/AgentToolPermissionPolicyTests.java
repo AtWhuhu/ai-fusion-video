@@ -5,6 +5,8 @@ import com.stonewu.fusion.service.ai.ToolExecutor;
 import com.stonewu.fusion.service.ai.ToolExecutionContext;
 import com.stonewu.fusion.service.ai.ToolPermissionRisk;
 import com.stonewu.fusion.service.ai.agentscope.AgentScopeToolAdapter;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
+import com.stonewu.fusion.service.storyboard.StoryboardService;
 import com.stonewu.fusion.service.ai.agentscope.tool.AgentScopeToolSchema;
 import com.stonewu.fusion.service.ai.run.RunLeaseGuard;
 import io.agentscope.core.message.ToolResultBlock;
@@ -146,7 +148,8 @@ class AgentToolPermissionPolicyTests {
                 schema,
                 Schedulers.immediate(),
                 mock(RunLeaseGuard.class),
-                new ObjectMapper());
+                new ObjectMapper(),
+                new StoryboardBlockingRefInjector(mock(StoryboardService.class), mock(com.stonewu.fusion.service.ai.AiModelService.class), mock(com.stonewu.fusion.service.generation.GenerationModelCapabilityService.class)));
     }
 
     private static final class StubTool extends ToolBase {

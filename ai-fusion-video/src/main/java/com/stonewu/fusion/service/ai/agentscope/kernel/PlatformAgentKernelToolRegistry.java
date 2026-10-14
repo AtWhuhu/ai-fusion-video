@@ -14,6 +14,7 @@ import com.stonewu.fusion.service.ai.agentscope.runtime.AgentRuntimeSchedulers;
 import com.stonewu.fusion.service.ai.agentscope.tool.AgentScopeToolSchema;
 import com.stonewu.fusion.service.ai.agentscope.tool.PlatformSubAgentRunPort;
 import com.stonewu.fusion.service.ai.run.RunLeaseGuard;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
 import io.agentscope.core.tool.AgentTool;
 import io.agentscope.core.tool.ToolBase;
 import io.agentscope.core.tool.Toolkit;
@@ -38,6 +39,7 @@ public final class PlatformAgentKernelToolRegistry implements AgentKernelToolReg
     private final RunLeaseGuard leaseGuard;
     private final ObjectMapper objectMapper;
     private final AgentScopeMcpRegistry mcpRegistry;
+    private final StoryboardBlockingRefInjector blockingRefs;
 
     public PlatformAgentKernelToolRegistry(
             ToolExecutorRegistry executors,
@@ -48,7 +50,8 @@ public final class PlatformAgentKernelToolRegistry implements AgentKernelToolReg
             AgentRuntimeSchedulers schedulers,
             RunLeaseGuard leaseGuard,
             ObjectMapper objectMapper,
-            AgentScopeMcpRegistry mcpRegistry) {
+            AgentScopeMcpRegistry mcpRegistry,
+            StoryboardBlockingRefInjector blockingRefs) {
         this.executors = Objects.requireNonNull(executors, "executors must not be null");
         this.toolConfigService = Objects.requireNonNull(
                 toolConfigService, "toolConfigService must not be null");
@@ -59,6 +62,7 @@ public final class PlatformAgentKernelToolRegistry implements AgentKernelToolReg
         this.leaseGuard = Objects.requireNonNull(leaseGuard, "leaseGuard must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.mcpRegistry = Objects.requireNonNull(mcpRegistry, "mcpRegistry must not be null");
+        this.blockingRefs = Objects.requireNonNull(blockingRefs, "blockingRefs must not be null");
     }
 
     @Override
@@ -102,7 +106,8 @@ public final class PlatformAgentKernelToolRegistry implements AgentKernelToolReg
                     requireManifest(
                             expected, schema, executor.isReadOnly(), executor.isConcurrencySafe());
                     toolkit.registerAgentTool(new AgentScopeToolAdapter(
-                            executor, schema, schedulers.toolBlocking(), leaseGuard, objectMapper));
+                            executor, schema, schedulers.toolBlocking(), leaseGuard, objectMapper,
+                            blockingRefs));
                 } else if (child != null) {
                     AgentScopeToolSchema.PreparedSchema schema =
                             AgentScopeToolSchema.prepareSubAgent(

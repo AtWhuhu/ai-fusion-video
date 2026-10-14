@@ -6,12 +6,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stonewu.fusion.service.ai.ToolExecutor;
 import com.stonewu.fusion.service.ai.ToolPermissionRisk;
+import com.stonewu.fusion.service.ai.agentscope.context.AgentConversationContext;
 import com.stonewu.fusion.service.ai.agentscope.context.AgentRunContext;
 import com.stonewu.fusion.service.ai.agentscope.context.CancellationContext;
 import com.stonewu.fusion.service.ai.agentscope.tool.AbstractPlatformAgentTool;
 import com.stonewu.fusion.service.ai.agentscope.tool.AgentScopeToolSchema;
 import com.stonewu.fusion.service.ai.agentscope.permission.AgentToolPermissionPolicy;
 import com.stonewu.fusion.service.ai.run.RunLeaseGuard;
+import com.stonewu.fusion.service.storyboard.StoryboardBlockingRefInjector;
 import io.agentscope.core.agent.RuntimeContext;
 import io.agentscope.core.message.ToolResultBlock;
 import io.agentscope.core.tool.ToolBase;
@@ -31,18 +33,21 @@ public final class AgentScopeToolAdapter extends AbstractPlatformAgentTool {
     private final Scheduler toolScheduler;
     private final RunLeaseGuard leaseGuard;
     private final ObjectMapper objectMapper;
+    private final StoryboardBlockingRefInjector blockingRefs;
 
     public AgentScopeToolAdapter(
             ToolExecutor toolExecutor,
             AgentScopeToolSchema.PreparedSchema schema,
             Scheduler toolScheduler,
             RunLeaseGuard leaseGuard,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            StoryboardBlockingRefInjector blockingRefs) {
         super(builder(toolExecutor, schema));
         this.toolExecutor = Objects.requireNonNull(toolExecutor, "toolExecutor must not be null");
         this.toolScheduler = Objects.requireNonNull(toolScheduler, "toolScheduler must not be null");
         this.leaseGuard = Objects.requireNonNull(leaseGuard, "leaseGuard must not be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.blockingRefs = Objects.requireNonNull(blockingRefs, "blockingRefs must not be null");
     }
 
     @Override
@@ -58,8 +63,13 @@ public final class AgentScopeToolAdapter extends AbstractPlatformAgentTool {
             Duration remaining = remaining(run);
             Map<String, Object> input = Objects.requireNonNull(
                     param.getInput(), "AgentScope tool input must not be null");
+            // 场景 3D 布景快照的确定性注入：命中本镜快照时补进参考图并顺移提示词编号
+            AgentConversationContext conversation = runtime.get(AgentConversationContext.class);
+            Map<String, Object> effectiveInput = conversation == null
+                    ? input
+                    : blockingRefs.apply(getName(), conversation.conversationId(), input);
             Mono<String> invocation = Mono.fromCallable(() -> toolExecutor.execute(
-                            JSONUtil.toJsonStr(input),
+                            JSONUtil.toJsonStr(effectiveInput),
                             com.stonewu.fusion.service.ai.ToolExecutionContext.builder()
                                     .userId(toolContext.userId())
                                     .ownerType(toolContext.ownerType())
