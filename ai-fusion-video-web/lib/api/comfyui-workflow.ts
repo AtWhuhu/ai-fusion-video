@@ -150,6 +150,11 @@ export const comfyUiWorkflowApi = {
     http.put<never, boolean>("/api/ai/comfyui/workflow/version/update", data),
   deleteVersion: (id: number) =>
     http.delete<never, boolean>(`/api/ai/comfyui/workflow/version/delete?id=${id}`),
+  convertUiWorkflow: (apiConfigId: number, uiWorkflowJson: string) =>
+    http.post<never, string>("/api/ai/comfyui/workflow/version/convert-ui", {
+      apiConfigId,
+      uiWorkflowJson,
+    }),
   validateVersion: (versionId: number) =>
     http.post<never, ComfyUiWorkflowValidationResult>(
       `/api/ai/comfyui/workflow/version/validate?versionId=${versionId}`,

@@ -47,6 +47,15 @@ public class ComfyUiWorkflowValidationService {
                 .build();
     }
 
+    /** Converts a UI-format graph into an API-format prompt using the target instance's node definitions. */
+    public String convertUiWorkflow(Long apiConfigId, String uiWorkflowJson) {
+        ApiConfig apiConfig = requireComfyUiApiConfig(apiConfigId);
+        ObjectNode uiWorkflow = documentService.parseUiWorkflow(uiWorkflowJson);
+        ObjectNode apiWorkflow = ComfyUiGraphWorkflowConverter.convert(
+                uiWorkflow, classType -> nativeClient.getNodeInfo(apiConfig, classType).path(classType));
+        return documentService.writePretty(apiWorkflow);
+    }
+
     public ComfyUiWorkflowValidationRespVO validateVersion(Long versionId) {
         ComfyUiWorkflowVersion version = workflowService.requireVersion(versionId);
         ComfyUiWorkflow workflow = workflowService.requireWorkflow(version.getWorkflowId());

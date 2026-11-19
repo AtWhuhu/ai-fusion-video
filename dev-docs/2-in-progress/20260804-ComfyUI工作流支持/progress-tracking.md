@@ -118,3 +118,6 @@
 - ComfyUI 接入配置新增可选“访问用户名”（复用 `appId` 字段，无迁移）：填写后所有 Native API 请求使用 `Basic base64(用户名:密码)`；留空时仍按原逻辑发送 Bearer Token；只填用户名不填密码时在发请求前明确报错。
 - `ComfyUiNativeClientTests` 增加 Basic 鉴权与缺少密码两条用例。
 
+- 工作流导入支持 UI-format：新增 `ComfyUiGraphWorkflowConverter`，按 ComfyUI 前端 `graphToPrompt` 规则把 UI-format（含 `definitions.subgraphs` 子图、旁路/静音节点、DynamicCombo 子控件、`control_after_generate`）转换为 API-format；控件名与默认值取自目标实例 `/object_info`，缺失节点时明确报错。
+- 新接口 `POST /api/ai/comfyui/workflow/version/convert-ui`；编辑器导入 UI JSON（或在 API 输入框导入 UI 文件）时自动转换并填充 API-format，原文保存在 UI-format 留档。
+- `ComfyUiGraphWorkflowConverterTests` 以 EasyColab 六个预置工作流为样例，期望值为真实 ComfyUI 前端 `graphToPrompt` 的输出（该 ComfyUI 实例 `/prompt` 校验 6/6 通过，模型为空占位文件，未实际生成）。

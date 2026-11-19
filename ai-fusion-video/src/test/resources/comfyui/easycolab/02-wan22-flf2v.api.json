@@ -1,0 +1,323 @@
+{
+ "6": {
+  "inputs": {
+   "text": "清晨海面的朝阳缓缓升起并化作绚丽的傍晚漫天晚霞，镜头平稳向右推进，云层与海浪自然流动过渡，光影由冷蓝渐变为温暖金红，画面连贯丝滑。",
+   "clip": [
+    "38",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "③ 输入首尾帧过渡动作与运镜描述 (正向提示词)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "7": {
+  "inputs": {
+   "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+   "clip": [
+    "38",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "反向提示词 (保持默认即可)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "8": {
+  "inputs": {
+   "samples": [
+    "58",
+    0
+   ],
+   "vae": [
+    "39",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "37": {
+  "inputs": {
+   "unet_name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "38": {
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Load CLIP",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "39": {
+  "inputs": {
+   "vae_name": "wan_2.1_vae.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "54": {
+  "inputs": {
+   "shift": 5,
+   "model": [
+    "91",
+    0
+   ]
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "ModelSamplingSD3",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "55": {
+  "inputs": {
+   "shift": 5,
+   "model": [
+    "92",
+    0
+   ]
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "ModelSamplingSD3",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "56": {
+  "inputs": {
+   "unet_name": "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "57": {
+  "inputs": {
+   "add_noise": "enable",
+   "noise_seed": 984937593540091,
+   "steps": 4,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 0,
+   "end_at_step": 2,
+   "return_with_leftover_noise": "enable",
+   "model": [
+    "54",
+    0
+   ],
+   "positive": [
+    "67",
+    0
+   ],
+   "negative": [
+    "67",
+    1
+   ],
+   "latent_image": [
+    "67",
+    2
+   ]
+  },
+  "class_type": "KSamplerAdvanced",
+  "_meta": {
+   "title": "KSampler (Advanced)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "58": {
+  "inputs": {
+   "add_noise": "disable",
+   "noise_seed": 0,
+   "steps": 4,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 2,
+   "end_at_step": 10000,
+   "return_with_leftover_noise": "disable",
+   "model": [
+    "55",
+    0
+   ],
+   "positive": [
+    "67",
+    0
+   ],
+   "negative": [
+    "67",
+    1
+   ],
+   "latent_image": [
+    "57",
+    0
+   ]
+  },
+  "class_type": "KSamplerAdvanced",
+  "_meta": {
+   "title": "KSampler (Advanced)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "60": {
+  "inputs": {
+   "fps": 16,
+   "bit_depth": "auto",
+   "color_space": "sRGB",
+   "chroma_subsampling": "auto",
+   "codec": "none",
+   "images": [
+    "8",
+    0
+   ]
+  },
+  "class_type": "CreateVideo",
+  "_meta": {
+   "title": "Create Video",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "61": {
+  "inputs": {
+   "filename_prefix": "video/Wan2.2_首尾帧过渡",
+   "format": "auto",
+   "format.codec": "auto",
+   "codec": "auto",
+   "video": [
+    "60",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "⑤ 首尾帧过渡成片预览与自动保存",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "62": {
+  "inputs": {
+   "image": "easycolab_sample_end.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "② 点击上传结束尾帧图片 (End Frame)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "67": {
+  "inputs": {
+   "width": 1280,
+   "height": 720,
+   "length": 81,
+   "batch_size": 1,
+   "positive": [
+    "6",
+    0
+   ],
+   "negative": [
+    "7",
+    0
+   ],
+   "vae": [
+    "39",
+    0
+   ],
+   "start_image": [
+    "68",
+    0
+   ],
+   "end_image": [
+    "62",
+    0
+   ]
+  },
+  "class_type": "WanFirstLastFrameToVideo",
+  "_meta": {
+   "title": "④ 视频尺寸与总帧数 (81帧≈5秒 · 1280×720)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.48"
+  }
+ },
+ "68": {
+  "inputs": {
+   "image": "easycolab_sample_start.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "① 点击上传起始首帧图片 (Start Frame)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.45"
+  }
+ },
+ "91": {
+  "inputs": {
+   "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+   "strength_model": 1,
+   "model": [
+    "37",
+    0
+   ]
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "Load LoRA",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.49"
+  }
+ },
+ "92": {
+  "inputs": {
+   "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+   "strength_model": 1,
+   "model": [
+    "56",
+    0
+   ]
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "Load LoRA",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.49"
+  }
+ }
+}

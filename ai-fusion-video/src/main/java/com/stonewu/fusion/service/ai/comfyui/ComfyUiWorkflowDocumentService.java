@@ -60,7 +60,7 @@ public class ComfyUiWorkflowDocumentService {
         requireModelType(modelType);
         ObjectNode apiWorkflow = parseObject(apiWorkflowJson, "API-format 工作流", MAX_API_JSON_BYTES, true);
         if (apiWorkflow.has("nodes") || apiWorkflow.has("links")) {
-            throw invalid("检测到 UI-format 工作流，请从 ComfyUI 使用 Export (API) 导出");
+            throw invalid("检测到 UI-format 工作流，请通过“导入 UI JSON”自动转换为 API-format");
         }
         if (apiWorkflow.isEmpty()) {
             throw invalid("API-format 工作流不能为空");
@@ -100,6 +100,22 @@ public class ComfyUiWorkflowDocumentService {
                 hash,
                 List.copyOf(inputBindings),
                 List.copyOf(outputBindings));
+    }
+
+    public ObjectNode parseUiWorkflow(String json) {
+        ObjectNode uiWorkflow = parseObject(json, "UI-format 工作流", MAX_UI_JSON_BYTES, true);
+        if (!ComfyUiGraphWorkflowConverter.isGraphWorkflow(uiWorkflow)) {
+            throw invalid("UI-format 工作流必须包含 nodes 数组");
+        }
+        return uiWorkflow;
+    }
+
+    public String writePretty(ObjectNode workflow) {
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(workflow);
+        } catch (JsonProcessingException error) {
+            throw invalid("工作流序列化失败");
+        }
     }
 
     public ObjectNode parseApiWorkflow(String json) {

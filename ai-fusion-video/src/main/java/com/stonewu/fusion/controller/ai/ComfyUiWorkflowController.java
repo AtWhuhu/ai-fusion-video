@@ -3,6 +3,7 @@ package com.stonewu.fusion.controller.ai;
 import com.stonewu.fusion.common.CommonResult;
 import com.stonewu.fusion.common.BusinessException;
 import com.stonewu.fusion.common.PageResult;
+import com.stonewu.fusion.controller.ai.vo.comfyui.ComfyUiWorkflowConvertReqVO;
 import com.stonewu.fusion.controller.ai.vo.comfyui.ComfyUiWorkflowCreateReqVO;
 import com.stonewu.fusion.controller.ai.vo.comfyui.ComfyUiWorkflowPageReqVO;
 import com.stonewu.fusion.controller.ai.vo.comfyui.ComfyUiWorkflowRespVO;
@@ -147,6 +148,12 @@ public class ComfyUiWorkflowController {
             @RequestParam("versionId") Long versionId) {
         workflowService.publishVersion(workflowId, versionId);
         return success(true);
+    }
+
+    @PostMapping("/version/convert-ui")
+    @Operation(summary = "将 UI-format 工作流转换为 API-format")
+    public CommonResult<String> convertUiWorkflow(@Valid @RequestBody ComfyUiWorkflowConvertReqVO request) {
+        return success(validationService.convertUiWorkflow(request.getApiConfigId(), request.getUiWorkflowJson()));
     }
 
     @PostMapping("/version/validate")
