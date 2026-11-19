@@ -1,0 +1,626 @@
+{
+ "8": {
+  "inputs": {
+   "samples": [
+    "125",
+    0
+   ],
+   "vae": [
+    "10",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "10": {
+  "inputs": {
+   "vae_name": "hunyuanvideo15_vae_fp16.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "Load VAE",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "11": {
+  "inputs": {
+   "clip_name1": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+   "clip_name2": "byt5_small_glyphxl_fp16.safetensors",
+   "type": "hunyuan_video_15",
+   "device": "default"
+  },
+  "class_type": "DualCLIPLoader",
+  "_meta": {
+   "title": "Load CLIP (Dual)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "12": {
+  "inputs": {
+   "unet_name": "hunyuanvideo1.5_720p_i2v_fp16.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "44": {
+  "inputs": {
+   "text": "清晨阳光洒在壮阔的海岸山脉上，镜头平稳向前推进，海面波光粼粼，云雾在山谷间缓慢流动，极致写实电影摄影质感。",
+   "clip": [
+    "11",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "② 输入画面动作与光影描述 (中英文皆可)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "78": {
+  "inputs": {
+   "width": 1280,
+   "height": 720,
+   "length": 121,
+   "batch_size": 1,
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "93",
+    0
+   ],
+   "vae": [
+    "10",
+    0
+   ],
+   "start_image": [
+    "80",
+    0
+   ],
+   "clip_vision_output": [
+    "79",
+    0
+   ]
+  },
+  "class_type": "HunyuanVideo15ImageToVideo",
+  "_meta": {
+   "title": "HunyuanVideo15ImageToVideo",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "79": {
+  "inputs": {
+   "crop": "center",
+   "clip_vision": [
+    "81",
+    0
+   ],
+   "image": [
+    "80",
+    0
+   ]
+  },
+  "class_type": "CLIPVisionEncode",
+  "_meta": {
+   "title": "CLIP Vision Encode",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "80": {
+  "inputs": {
+   "image": "easycolab_sample_start.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "① 点击上传起始首帧图片 (720P → 1080P 超分)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "81": {
+  "inputs": {
+   "clip_name": "sigclip_vision_patch14_384.safetensors"
+  },
+  "class_type": "CLIPVisionLoader",
+  "_meta": {
+   "title": "Load CLIP Vision",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "93": {
+  "inputs": {
+   "text": "",
+   "clip": [
+    "11",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "CLIP Text Encode (Negative Prompt)",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "101": {
+  "inputs": {
+   "fps": 24,
+   "bit_depth": "auto",
+   "color_space": "sRGB",
+   "chroma_subsampling": "auto",
+   "codec": "none",
+   "images": [
+    "8",
+    0
+   ]
+  },
+  "class_type": "CreateVideo",
+  "_meta": {
+   "title": "Create Video",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "102": {
+  "inputs": {
+   "filename_prefix": "video/hunyuan_video_1.5",
+   "format": "auto",
+   "format.codec": "h264",
+   "format.codec.encoding": "auto",
+   "codec": "auto",
+   "video": [
+    "101",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "③ 720P 基础成片预览",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "108": {
+  "inputs": {
+   "model_name": "hunyuanvideo15_latent_upsampler_1080p.safetensors"
+  },
+  "class_type": "LatentUpscaleModelLoader",
+  "_meta": {
+   "title": "Load Latent Upscale Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "109": {
+  "inputs": {
+   "upscale_method": "bilinear",
+   "width": 1920,
+   "height": 1080,
+   "crop": "disabled",
+   "model": [
+    "108",
+    0
+   ],
+   "samples": [
+    "125",
+    0
+   ]
+  },
+  "class_type": "HunyuanVideo15LatentUpscaleWithModel",
+  "_meta": {
+   "title": "Hunyuan Video 1.5 Latent Upscale With Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "111": {
+  "inputs": {
+   "unet_name": "hunyuanvideo1.5_1080p_sr_distilled_fp16.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Load Diffusion Model",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "113": {
+  "inputs": {
+   "noise_augmentation": 0.7,
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "93",
+    0
+   ],
+   "latent": [
+    "109",
+    0
+   ],
+   "vae": [
+    "10",
+    0
+   ],
+   "start_image": [
+    "80",
+    0
+   ],
+   "clip_vision_output": [
+    "79",
+    0
+   ]
+  },
+  "class_type": "HunyuanVideo15SuperResolution",
+  "_meta": {
+   "title": "Hunyuan Video 1.5 Super Resolution",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "114": {
+  "inputs": {
+   "fps": 24,
+   "bit_depth": "auto",
+   "color_space": "sRGB",
+   "chroma_subsampling": "auto",
+   "codec": "none",
+   "images": [
+    "117",
+    0
+   ]
+  },
+  "class_type": "CreateVideo",
+  "_meta": {
+   "title": "Create Video",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "117": {
+  "inputs": {
+   "samples": [
+    "139",
+    0
+   ],
+   "vae": [
+    "10",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "118": {
+  "inputs": {
+   "filename_prefix": "video/hunyuan_video_1.5_sr",
+   "format": "auto",
+   "format.codec": "auto",
+   "codec": "auto",
+   "video": [
+    "114",
+    0
+   ]
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "④ 1920×1080 超高清成片预览与保存",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "125": {
+  "inputs": {
+   "noise": [
+    "127",
+    0
+   ],
+   "guider": [
+    "129",
+    0
+   ],
+   "sampler": [
+    "128",
+    0
+   ],
+   "sigmas": [
+    "126",
+    0
+   ],
+   "latent_image": [
+    "78",
+    2
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "SamplerCustomAdvanced",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "126": {
+  "inputs": {
+   "scheduler": "simple",
+   "steps": 20,
+   "denoise": 1,
+   "model": [
+    "12",
+    0
+   ]
+  },
+  "class_type": "BasicScheduler",
+  "_meta": {
+   "title": "BasicScheduler",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "127": {
+  "inputs": {
+   "noise_seed": 887963123424675
+  },
+  "class_type": "RandomNoise",
+  "_meta": {
+   "title": "RandomNoise",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "128": {
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "KSamplerSelect",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "129": {
+  "inputs": {
+   "cfg": 6,
+   "model": [
+    "130",
+    0
+   ],
+   "positive": [
+    "78",
+    0
+   ],
+   "negative": [
+    "78",
+    1
+   ]
+  },
+  "class_type": "CFGGuider",
+  "_meta": {
+   "title": "CFG Guider",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "130": {
+  "inputs": {
+   "shift": 7,
+   "model": [
+    "12",
+    0
+   ]
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "ModelSamplingSD3",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "131": {
+  "inputs": {
+   "noise_seed": 889
+  },
+  "class_type": "RandomNoise",
+  "_meta": {
+   "title": "RandomNoise",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "132": {
+  "inputs": {
+   "sampler_name": "euler"
+  },
+  "class_type": "KSamplerSelect",
+  "_meta": {
+   "title": "KSamplerSelect",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "133": {
+  "inputs": {
+   "shift": 2,
+   "model": [
+    "111",
+    0
+   ]
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "ModelSamplingSD3",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "134": {
+  "inputs": {
+   "scheduler": "simple",
+   "steps": 8,
+   "denoise": 1,
+   "model": [
+    "111",
+    0
+   ]
+  },
+  "class_type": "BasicScheduler",
+  "_meta": {
+   "title": "BasicScheduler",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "135": {
+  "inputs": {
+   "step": 4,
+   "sigmas": [
+    "134",
+    0
+   ]
+  },
+  "class_type": "SplitSigmas",
+  "_meta": {
+   "title": "SplitSigmas",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.71"
+  }
+ },
+ "137": {
+  "inputs": {},
+  "class_type": "DisableNoise",
+  "_meta": {
+   "title": "DisableNoise",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.70"
+  }
+ },
+ "138": {
+  "inputs": {
+   "noise": [
+    "131",
+    0
+   ],
+   "guider": [
+    "141",
+    0
+   ],
+   "sampler": [
+    "132",
+    0
+   ],
+   "sigmas": [
+    "135",
+    0
+   ],
+   "latent_image": [
+    "113",
+    2
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "SamplerCustomAdvanced",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "139": {
+  "inputs": {
+   "noise": [
+    "137",
+    0
+   ],
+   "guider": [
+    "140",
+    0
+   ],
+   "sampler": [
+    "132",
+    0
+   ],
+   "sigmas": [
+    "135",
+    1
+   ],
+   "latent_image": [
+    "138",
+    0
+   ]
+  },
+  "class_type": "SamplerCustomAdvanced",
+  "_meta": {
+   "title": "SamplerCustomAdvanced",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "140": {
+  "inputs": {
+   "cfg": 1,
+   "model": [
+    "111",
+    0
+   ],
+   "positive": [
+    "44",
+    0
+   ],
+   "negative": [
+    "93",
+    0
+   ]
+  },
+  "class_type": "CFGGuider",
+  "_meta": {
+   "title": "CFG Guider",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ },
+ "141": {
+  "inputs": {
+   "cfg": 1,
+   "model": [
+    "133",
+    0
+   ],
+   "positive": [
+    "113",
+    0
+   ],
+   "negative": [
+    "113",
+    1
+   ]
+  },
+  "class_type": "CFGGuider",
+  "_meta": {
+   "title": "CFG Guider",
+   "cnr_id": "comfy-core",
+   "ver": "0.3.68"
+  }
+ }
+}

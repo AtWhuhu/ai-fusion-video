@@ -69,7 +69,7 @@ export function parseComfyUiNodes(apiWorkflowJson: string): ComfyUiNodeOption[] 
     throw new Error("API-format 工作流必须是 JSON 对象");
   }
   if ("nodes" in parsed || "links" in parsed) {
-    throw new Error("检测到 UI-format，请在 ComfyUI 中使用 Export (API) 导出");
+    throw new Error("检测到 UI-format，请通过“导入 UI JSON”自动转换");
   }
   return Object.entries(parsed).map(([id, rawNode]) => {
     const node = rawNode as { class_type?: unknown; inputs?: unknown; _meta?: unknown };
@@ -126,4 +126,8 @@ export function parseOutputBindingsJson(value: string): ComfyUiOutputBinding[] {
   const parsed = JSON.parse(value) as ComfyUiOutputBinding[];
   if (!Array.isArray(parsed)) throw new Error("输出绑定必须是 JSON 数组");
   return parsed;
+}
+
+export function isComfyUiGraphWorkflow(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && Array.isArray((value as { nodes?: unknown }).nodes));
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Copy, FileJson2, Loader2, Save, Trash2 } from "lucide-react";
+import { Copy, FileJson2, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -32,6 +32,7 @@ import { ComfyUiBindingEditor } from "./comfyui-binding-editor";
 import { ComfyUiVersionActions } from "./comfyui-version-actions";
 import {
   formatComfyUiNodeLabel,
+  isComfyUiGraphWorkflow,
   parseComfyUiNodes,
   parseInputBindingsJson,
   parseOutputBindingsJson,
@@ -81,6 +82,7 @@ export function ComfyUiWorkflowEditor({
   const uiFileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [versions, setVersions] = useState<ComfyUiWorkflowVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<ComfyUiWorkflowVersion | null>(null);
@@ -203,17 +205,39 @@ export function ComfyUiWorkflowEditor({
     }
   };
 
+  const convertUiWorkflow = async (uiWorkflowJson: string) => {
+    setConverting(true);
+    try {
+      const apiWorkflowJson = await comfyUiWorkflowApi.convertUiWorkflow(apiConfig.id, uiWorkflowJson);
+      setVersionDraft(previous => ({ ...previous, uiWorkflowJson, apiWorkflowJson }));
+      const nodeCount = Object.keys(JSON.parse(apiWorkflowJson) as Record<string, unknown>).length;
+      toast.success(`UI-format 已转换为 API-format，共 ${nodeCount} 个节点`);
+    } catch (error) {
+      toastApiError(error, "UI-format 转换失败");
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const importJson = async (file: File, kind: "api" | "ui") => {
     const value = await file.text();
+    let parsed: unknown;
     try {
-      JSON.parse(value);
-      setVersionDraft(previous => kind === "api"
-        ? { ...previous, apiWorkflowJson: value }
-        : { ...previous, uiWorkflowJson: value });
-      toast.success(kind === "api" ? "API-format JSON 已导入" : "UI-format JSON 已导入");
+      parsed = JSON.parse(value);
     } catch {
       toast.error("文件不是合法 JSON");
+      return;
     }
+    if (isComfyUiGraphWorkflow(parsed)) {
+      await convertUiWorkflow(value);
+      return;
+    }
+    if (kind === "ui") {
+      toast.error("文件不是 UI-format 工作流，请使用“导入 API JSON”");
+      return;
+    }
+    setVersionDraft(previous => ({ ...previous, apiWorkflowJson: value }));
+    toast.success("API-format JSON 已导入");
   };
 
   const versionLocked = Boolean(selectedVersion?.published && versionDraft.id === selectedVersion.id);
@@ -312,12 +336,12 @@ export function ComfyUiWorkflowEditor({
           <div className="space-y-4">
             {versionLocked && <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">已发布版本不可修改。点击“复制为新版本”后再编辑。</div>}
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3"><div><Label>API-format JSON</Label><p className="mt-1 text-xs text-muted-foreground">在 ComfyUI 中选择 Save (API Format) 或 Export (API)。</p></div><Button variant="outline" size="sm" onClick={() => apiFileRef.current?.click()} disabled={versionLocked}><FileJson2 />导入 API JSON</Button></div>
+              <div className="flex items-center justify-between gap-3"><div><Label>API-format JSON</Label><p className="mt-1 text-xs text-muted-foreground">在 ComfyUI 中选择 Export (API)；导入 UI-format 文件时会自动转换。</p></div><Button variant="outline" size="sm" onClick={() => apiFileRef.current?.click()} disabled={versionLocked || converting}><FileJson2 />导入 API JSON</Button></div>
               <input ref={apiFileRef} type="file" accept="application/json,.json" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) void importJson(file, "api"); event.target.value = ""; }} />
               <Textarea value={versionDraft.apiWorkflowJson} onChange={event => setVersionDraft(previous => ({ ...previous, apiWorkflowJson: event.target.value }))} readOnly={versionLocked} spellCheck={false} className="min-h-72 resize-y font-mono text-xs" placeholder='{"1":{"class_type":"KSampler","inputs":{...}}}' />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-3"><div><Label>UI-format JSON（可选）</Label><p className="mt-1 text-xs text-muted-foreground">仅用于留档和回到 ComfyUI 编辑，不参与执行。</p></div><Button variant="outline" size="sm" onClick={() => uiFileRef.current?.click()} disabled={versionLocked}><FileJson2 />导入 UI JSON</Button></div>
+              <div className="flex items-center justify-between gap-3"><div><Label>UI-format JSON（可选）</Label><p className="mt-1 text-xs text-muted-foreground">按目标 ComfyUI 的节点定义自动转换为上方 API-format，原文留档用于回到 ComfyUI 编辑。</p></div><div className="flex gap-2"><Button variant="secondary" size="sm" onClick={() => void convertUiWorkflow(versionDraft.uiWorkflowJson)} disabled={versionLocked || converting || !versionDraft.uiWorkflowJson.trim()} title="将下方 UI-format 转换为 API-format">{converting ? <Loader2 className="animate-spin" /> : <RefreshCw />}转换</Button><Button variant="outline" size="sm" onClick={() => uiFileRef.current?.click()} disabled={versionLocked || converting}><FileJson2 />导入 UI JSON</Button></div></div>
               <input ref={uiFileRef} type="file" accept="application/json,.json" className="hidden" onChange={event => { const file = event.target.files?.[0]; if (file) void importJson(file, "ui"); event.target.value = ""; }} />
               <Textarea value={versionDraft.uiWorkflowJson} onChange={event => setVersionDraft(previous => ({ ...previous, uiWorkflowJson: event.target.value }))} readOnly={versionLocked} spellCheck={false} className="min-h-32 resize-y font-mono text-xs" placeholder="可留空" />
             </div>
