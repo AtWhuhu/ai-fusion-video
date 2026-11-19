@@ -26,6 +26,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -296,10 +297,28 @@ public class ComfyUiNativeClient {
         String url = path.startsWith("http://") || path.startsWith("https://")
                 ? path : resolveBaseUrl(apiConfig) + (path.startsWith("/") ? path : "/" + path);
         Request.Builder builder = new Request.Builder().url(url).header("Accept", "application/json");
-        if (apiConfig != null && StrUtil.isNotBlank(apiConfig.getApiKey())) {
-            builder.header("Authorization", "Bearer " + apiConfig.getApiKey().trim());
+        String authorization = authorizationHeader(apiConfig);
+        if (authorization != null) {
+            builder.header("Authorization", authorization);
         }
         return builder;
+    }
+
+    /** Basic when a username is configured (e.g. EasyColab's nginx ingress), otherwise Bearer. */
+    private String authorizationHeader(ApiConfig apiConfig) {
+        if (apiConfig == null) {
+            return null;
+        }
+        String username = StrUtil.trimToNull(apiConfig.getAppId());
+        String secret = StrUtil.trimToNull(apiConfig.getApiKey());
+        if (username != null) {
+            if (secret == null) {
+                throw new BusinessException(400, "ComfyUI 已填写访问用户名，请同时填写访问密码");
+            }
+            String credentials = username + ":" + secret;
+            return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        }
+        return secret == null ? null : "Bearer " + secret;
     }
 
     private OkHttpClient client(ApiConfig apiConfig) {

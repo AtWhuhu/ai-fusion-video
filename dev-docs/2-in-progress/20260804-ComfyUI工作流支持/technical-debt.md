@@ -76,6 +76,13 @@
 - 阻塞表现：全量 `mvn test` 中 3 个 Spring 上下文测试类因 MySQL `Connection refused` 失败。
 - 后续验收：启动项目目标 MySQL，执行应用启动或等价 Flyway validate，并重新运行全量测试。
 
+### DEBT-COMFY-010：EasyColab 实例的地址与预置工作流
+
+- 状态：待真实实例验证
+- 风险：EasyColab 使用 `*.trycloudflare.com` 临时隧道，实例重启后域名变化，需手动更新 ComfyUI 接入地址；其内置 Wan2.2 / MiniMax-H3 / LTX-2.3 / HunyuanVideo 1.5 预置工作流是 ComfyUI 前端（UI）格式，不能直接导入本平台。
+- 当前策略：用户在 EasyColab 的 ComfyUI 画布中加载预置工作流后，用“导出（API）”得到 API-format JSON，再按现有导入向导绑定输入输出。
+- 后续方向：在真实实例上导出并验证后，评估是否内置这几套工作流的 API-format 模板与默认绑定。
+
 ## 已清偿债务
 
 当前无。

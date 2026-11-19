@@ -153,11 +153,18 @@ export function getPlatformFields(platform: string): PlatformField[] {
           helperText: "填写 ComfyUI 服务根地址，不要追加 /api 或 /v1。",
         },
         {
+          key: "appId",
+          label: "访问用户名（可选）",
+          placeholder: "Basic 鉴权时填写，如 EasyColab 为 easycolab",
+          type: "text",
+          helperText: "填写后使用 Basic 鉴权（用户名 + 下方密码）；留空则下方内容作为 Bearer Token 发送。",
+        },
+        {
           key: "apiKey",
-          label: "Bearer Token（可选）",
+          label: "访问密码 / Bearer Token（可选）",
           placeholder: "未启用鉴权时留空",
           type: "password",
-          helperText: "仅在 ComfyUI 前置网关要求 Bearer 鉴权时填写。",
+          helperText: "EasyColab 填桌面端服务地址旁的管理密码；其他前置网关按其要求填写 Bearer Token。",
         },
       ];
     case "sonilo":

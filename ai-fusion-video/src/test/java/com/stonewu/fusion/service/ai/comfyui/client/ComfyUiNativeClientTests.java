@@ -17,6 +17,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -96,6 +97,36 @@ class ComfyUiNativeClientTests {
         assertThat(requestJson.get().path("prompt_id").asText()).isEqualTo(promptId);
         assertThat(requestJson.get().path("prompt").path("1").path("class_type").asText())
                 .isEqualTo("KSampler");
+    }
+
+    @Test
+    void requestsUseBasicAuthWhenUsernameConfigured() {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        server.createContext("/system_stats", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst("Authorization"));
+            json(exchange, 200, "{\"system\":{\"comfyui_version\":\"0.30.0\"}}");
+        });
+        server.createContext("/features", exchange -> json(exchange, 200, "{\"jobs\":true}"));
+        server.createContext("/api/jobs/", exchange -> json(exchange, 404,
+                "{\"error\":\"Job not found\"}"));
+        apiConfig.setAppId("easycolab");
+        apiConfig.setApiKey("management-password");
+
+        client.testConnection(apiConfig);
+
+        assertThat(authorization.get()).isEqualTo("Basic "
+                + Base64.getEncoder().encodeToString(
+                "easycolab:management-password".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    void basicAuthUsernameWithoutPasswordIsRejectedBeforeNetworkCall() {
+        apiConfig.setAppId("easycolab");
+        apiConfig.setApiKey(" ");
+
+        assertThatThrownBy(() -> client.testConnection(apiConfig))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("访问密码");
     }
 
     @Test
