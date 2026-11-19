@@ -17,7 +17,7 @@ import {
   type MediaAssetItem,
 } from "@/lib/api/media-assets";
 import { cn } from "@/lib/utils";
-import { STATUS_DOT, STATUS_STYLES, formatBytes, formatDateTime, mediaTypeIcon } from "./media-asset-support";
+import { STATUS_DOT, STATUS_STYLES, formatBytes, formatDateTime, MediaTypeIcon } from "./media-asset-support";
 
 interface MediaAssetDetailDialogProps {
   item: MediaAssetItem | null;
@@ -34,14 +34,12 @@ export function MediaAssetDetailDialog({
   onCopy,
   busy,
 }: MediaAssetDetailDialogProps) {
-  const Icon = item ? mediaTypeIcon(item.mediaType) : null;
-
   return (
     <Dialog open={!!item} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+            {item && <MediaTypeIcon type={item.mediaType} className="h-4 w-4 text-muted-foreground" />}
             文件详情
           </DialogTitle>
           <DialogDescription className="break-all">{item?.key}</DialogDescription>

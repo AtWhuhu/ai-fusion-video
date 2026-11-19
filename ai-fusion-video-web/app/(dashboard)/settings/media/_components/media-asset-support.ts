@@ -1,3 +1,4 @@
+import { createElement } from "react";
 import {
   FileAudio,
   FileQuestion,
@@ -45,8 +46,9 @@ const TYPE_ICONS = {
   other: FileQuestion,
 } as const;
 
-export function mediaTypeIcon(type: MediaAssetType) {
-  return TYPE_ICONS[type] ?? FileQuestion;
+/** 媒体类型图标 */
+export function MediaTypeIcon({ type, className }: { type: MediaAssetType; className?: string }) {
+  return createElement(TYPE_ICONS[type] ?? FileQuestion, { className });
 }
 
 /** 缩略图地址（仅图片类型返回预览地址） */
