@@ -16,7 +16,7 @@ import {
   STATUS_STYLES,
   formatBytes,
   formatDateTime,
-  mediaTypeIcon,
+  MediaTypeIcon,
   thumbnailUrl,
 } from "./media-asset-support";
 
@@ -82,7 +82,6 @@ interface MediaAssetCardProps {
 
 function MediaAssetCard({ item, selected, onToggleSelect, onOpenDetail }: MediaAssetCardProps) {
   const [previewFailed, setPreviewFailed] = useState(false);
-  const Icon = mediaTypeIcon(item.mediaType);
   const preview = thumbnailUrl(item.url, item.mediaType);
   const fileName = item.key.split("/").pop() ?? item.key;
 
@@ -117,7 +116,7 @@ function MediaAssetCard({ item, selected, onToggleSelect, onOpenDetail }: MediaA
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <Icon className="h-8 w-8 text-muted-foreground/25" />
+            <MediaTypeIcon type={item.mediaType} className="h-8 w-8 text-muted-foreground/25" />
           </div>
         )}
 
