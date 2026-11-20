@@ -34,6 +34,10 @@ jobs:
         working-directory: ./ai-fusion-video
         run: |
           chmod +x mvnw
+          # 版本检查读取 build-info 中的项目版本，标签构建时与镜像标签保持一致（如 1.2.2-fork.17）
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            ./mvnw -B -q versions:set -DnewVersion="${GITHUB_REF_NAME#v}" -DgenerateBackupPoms=false
+          fi
           ./mvnw clean package -DskipTests -B
 
       - name: Prepare backend Docker context

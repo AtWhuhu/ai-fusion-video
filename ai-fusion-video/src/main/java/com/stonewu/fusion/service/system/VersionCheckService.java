@@ -35,16 +35,25 @@ import java.util.regex.Pattern;
 @Slf4j
 public class VersionCheckService {
 
-    private static final String RELEASES_API_URL =
-            "https://api.github.com/repos/Stonewuu/ai-fusion-video/releases?per_page=10";
+    private static final String TAGS_API_URL =
+            "https://api.github.com/repos/AtWhuhu/ai-fusion-video/tags?per_page=100";
     private static final String RELEASES_PAGE_URL =
-            "https://github.com/Stonewuu/ai-fusion-video/releases";
-    private static final String DOCKER_HUB_TAG_API_TEMPLATE =
-            "https://hub.docker.com/v2/repositories/%s/tags/%s";
-    private static final String BACKEND_IMAGE_REPOSITORY = "stonewuu/ai-fusion-video";
-    private static final String FRONTEND_IMAGE_REPOSITORY = "stonewuu/ai-fusion-video-web";
+            "https://github.com/AtWhuhu/ai-fusion-video/tags";
+    private static final String GHCR_TOKEN_URL_TEMPLATE =
+            "https://ghcr.io/token?scope=repository:%s:pull&service=ghcr.io";
+    private static final String GHCR_MANIFEST_URL_TEMPLATE = "https://ghcr.io/v2/%s/manifests/%s";
+    private static final String GHCR_MANIFEST_ACCEPT = String.join(", ",
+            "application/vnd.oci.image.index.v1+json",
+            "application/vnd.docker.distribution.manifest.list.v2+json",
+            "application/vnd.oci.image.manifest.v1+json",
+            "application/vnd.docker.distribution.manifest.v2+json");
+    private static final String BACKEND_IMAGE_REPOSITORY = "atwhuhu/ai-fusion-video";
+    private static final String FRONTEND_IMAGE_REPOSITORY = "atwhuhu/ai-fusion-video-web";
+    private static final int MAX_IMAGE_CHECKS = 10;
     private static final Duration CACHE_TTL = Duration.ofHours(6);
-    private static final Pattern SEMVER_PATTERN = Pattern.compile("(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?");
+    private static final Pattern SEMVER_PATTERN =
+            Pattern.compile("(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?(?:-fork\\.(\\d+))?");
+    private static final Pattern RELEASE_TAG_PATTERN = Pattern.compile("^v?\\d+\\.\\d+\\.\\d+(?:-fork\\.\\d+)?$");
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Nullable
@@ -116,7 +125,7 @@ public class VersionCheckService {
         respVO.setTagUrl(deployableRelease != null ? deployableRelease.tagUrl() : RELEASES_PAGE_URL);
         respVO.setPublishedAt(deployableRelease != null ? deployableRelease.publishedAt() : null);
         respVO.setCheckedAt(latest.checkedAt().toString());
-        respVO.setSource("github-release+docker-hub");
+        respVO.setSource("github-tag+ghcr");
         respVO.setCheckSucceeded(latest.checkSucceeded());
         respVO.setMessage(resolveMessage(runtimeVersionInfo, latest, versionRelation));
         return respVO;
@@ -186,7 +195,7 @@ public class VersionCheckService {
 
     private CachedVersionInfo fetchLatestVersionInfo() {
         Request request = new Request.Builder()
-                .url(RELEASES_API_URL)
+                .url(TAGS_API_URL)
                 .header("Accept", "application/vnd.github+json")
                 .header("X-GitHub-Api-Version", "2022-11-28")
                 .header("User-Agent", "ai-fusion-video-version-check")
@@ -205,64 +214,43 @@ public class VersionCheckService {
                 return CachedVersionInfo.failure(message);
             }
 
-            String body = response.body().string();
-            JsonNode root = OBJECT_MAPPER.readTree(body);
-            if (!root.isArray() || root.isEmpty()) {
-                String message = "GitHub 版本检查失败: 未找到可用 release";
+            List<String> versions = sortReleaseVersions(OBJECT_MAPPER.readTree(response.body().string()));
+            if (versions.isEmpty()) {
+                String message = "GitHub 版本检查失败: 未找到版本标签";
                 log.warn("[VersionCheck] {}", message);
                 return CachedVersionInfo.failure(message);
             }
 
             ReleaseInfo latestRelease = null;
             ReleaseInfo deployableRelease = null;
-
-            for (JsonNode releaseNode : root) {
-                if (releaseNode.path("draft").asBoolean(false) || releaseNode.path("prerelease").asBoolean(false)) {
-                    continue;
-                }
-
-                String tagName = sanitizeVersion(releaseNode.path("tag_name").asText(null));
-                if (!hasText(tagName)) {
-                    continue;
-                }
-
-                String releaseUrl = textOrNull(releaseNode, "html_url");
-                String publishedAt = textOrNull(releaseNode, "published_at");
-                boolean dockerReady = areDockerImagesReady(tagName);
+            for (String version : versions.subList(0, Math.min(MAX_IMAGE_CHECKS, versions.size()))) {
                 ReleaseInfo releaseInfo = new ReleaseInfo(
-                        tagName,
-                        hasText(releaseUrl) ? releaseUrl : buildTagUrl(tagName),
-                        buildTagUrl(tagName),
-                        publishedAt,
-                        dockerReady
+                        version,
+                        buildTagUrl(version),
+                        buildTagUrl(version),
+                        null,
+                        areDockerImagesReady(version)
                 );
-
                 if (latestRelease == null) {
                     latestRelease = releaseInfo;
                 }
-                if (dockerReady) {
+                if (releaseInfo.dockerReady()) {
                     deployableRelease = releaseInfo;
                     break;
                 }
-            }
-
-            if (latestRelease == null) {
-                String message = "GitHub 版本检查失败: 未找到正式 release";
-                log.warn("[VersionCheck] {}", message);
-                return CachedVersionInfo.failure(message);
             }
 
             String message = null;
             if (!latestRelease.dockerReady()) {
                 if (deployableRelease != null) {
                     message = String.format(
-                            "最新 Release %s 已发布，但 Docker 镜像尚未就绪；当前可升级的最新版本为 %s。",
+                            "最新版本 %s 已打标签，但 Docker 镜像尚未就绪；当前可升级的最新版本为 %s。",
                             displayVersion(latestRelease.version()),
                             displayVersion(deployableRelease.version())
                     );
                 } else {
                     message = String.format(
-                            "最新 Release %s 已发布，但 Docker 镜像尚未就绪，暂不建议升级。",
+                            "最新版本 %s 已打标签，但 Docker 镜像尚未就绪，暂不建议升级。",
                             displayVersion(latestRelease.version())
                     );
                 }
@@ -276,33 +264,64 @@ public class VersionCheckService {
         }
     }
 
-    private boolean areDockerImagesReady(String version) {
-        return dockerTagExists(BACKEND_IMAGE_REPOSITORY, version)
-                && dockerTagExists(FRONTEND_IMAGE_REPOSITORY, version);
+    static List<String> sortReleaseVersions(JsonNode tags) {
+        List<String> versions = new ArrayList<>();
+        if (tags == null || !tags.isArray()) {
+            return versions;
+        }
+        for (JsonNode tag : tags) {
+            String name = tag.path("name").asText("").trim();
+            if (RELEASE_TAG_PATTERN.matcher(name).matches()) {
+                versions.add(name.startsWith("v") ? name.substring(1) : name);
+            }
+        }
+        versions.sort((left, right) -> compareVersions(right, left));
+        return versions;
     }
 
-    private boolean dockerTagExists(String repository, String version) {
-        String encodedVersion = URLEncoder.encode(version, StandardCharsets.UTF_8);
-        String url = String.format(DOCKER_HUB_TAG_API_TEMPLATE, repository, encodedVersion);
-        Request request = new Request.Builder()
-                .url(url)
-                .header("Accept", "application/json")
-                .header("User-Agent", "ai-fusion-video-version-check")
-                .build();
+    private boolean areDockerImagesReady(String version) {
+        return imageTagExists(BACKEND_IMAGE_REPOSITORY, version)
+                && imageTagExists(FRONTEND_IMAGE_REPOSITORY, version);
+    }
 
-        try (Response response = httpClient.newCall(request).execute()) {
-            if (response.isSuccessful()) {
-                return true;
+    private boolean imageTagExists(String repository, String version) {
+        try {
+            String token = fetchGhcrToken(repository);
+            Request request = new Request.Builder()
+                    .url(String.format(GHCR_MANIFEST_URL_TEMPLATE, repository,
+                            URLEncoder.encode(version, StandardCharsets.UTF_8)))
+                    .head()
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", GHCR_MANIFEST_ACCEPT)
+                    .header("User-Agent", "ai-fusion-video-version-check")
+                    .build();
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (response.isSuccessful()) {
+                    return true;
+                }
+                if (response.code() != 404) {
+                    log.warn("[VersionCheck] GHCR 镜像检测失败: repo={}, tag={}, code={}", repository, version,
+                            response.code());
+                }
+                return false;
             }
-            if (response.code() != 404) {
-                log.warn("[VersionCheck] Docker Hub 标签检测失败: repo={}, tag={}, code={}", repository, version,
-                        response.code());
-            }
-            return false;
         } catch (IOException e) {
-            log.warn("[VersionCheck] Docker Hub 标签检测异常: repo={}, tag={}, err={}", repository, version,
+            log.warn("[VersionCheck] GHCR 镜像检测异常: repo={}, tag={}, err={}", repository, version,
                     e.getMessage());
             return false;
+        }
+    }
+
+    private String fetchGhcrToken(String repository) throws IOException {
+        Request request = new Request.Builder()
+                .url(String.format(GHCR_TOKEN_URL_TEMPLATE, repository))
+                .header("User-Agent", "ai-fusion-video-version-check")
+                .build();
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                throw new IOException("GHCR token HTTP " + response.code());
+            }
+            return OBJECT_MAPPER.readTree(response.body().string()).path("token").asText();
         }
     }
 
@@ -311,7 +330,7 @@ public class VersionCheckService {
             return "incomparable";
         }
 
-        int result = compareSemver(currentVersion, latestVersion);
+        int result = compareVersions(currentVersion, latestVersion);
         if (result < 0) {
             return "behind";
         }
@@ -342,10 +361,10 @@ public class VersionCheckService {
         return messages.isEmpty() ? null : String.join(" ", messages);
     }
 
-    private int compareSemver(String left, String right) {
-        int[] leftParts = parseSemver(left);
-        int[] rightParts = parseSemver(right);
-        for (int index = 0; index < 3; index++) {
+    static int compareVersions(String left, String right) {
+        int[] leftParts = parseVersion(left);
+        int[] rightParts = parseVersion(right);
+        for (int index = 0; index < leftParts.length; index++) {
             int result = Integer.compare(leftParts[index], rightParts[index]);
             if (result != 0) {
                 return result;
@@ -354,19 +373,20 @@ public class VersionCheckService {
         return 0;
     }
 
-    private int[] parseSemver(String version) {
+    private static int[] parseVersion(String version) {
         Matcher matcher = SEMVER_PATTERN.matcher(version);
         if (!matcher.find()) {
-            return new int[]{0, 0, 0};
+            return new int[]{0, 0, 0, 0};
         }
         return new int[]{
                 parseIntSafe(matcher.group(1)),
                 parseIntSafe(matcher.group(2)),
-                parseIntSafe(matcher.group(3))
+                parseIntSafe(matcher.group(3)),
+                parseIntSafe(matcher.group(4))
         };
     }
 
-    private int parseIntSafe(String value) {
+    private static int parseIntSafe(String value) {
         if (!hasText(value)) {
             return 0;
         }
@@ -387,7 +407,7 @@ public class VersionCheckService {
         return "v" + sanitizeVersion(version);
     }
 
-    private String sanitizeVersion(String version) {
+    private static String sanitizeVersion(String version) {
         if (!hasText(version)) {
             return null;
         }
@@ -402,7 +422,7 @@ public class VersionCheckService {
         if (!hasText(tagName)) {
             return RELEASES_PAGE_URL;
         }
-        return "https://github.com/Stonewuu/ai-fusion-video/releases/tag/v" + sanitizeVersion(tagName);
+        return "https://github.com/AtWhuhu/ai-fusion-video/tree/v" + sanitizeVersion(tagName);
     }
 
     private String textOrNull(JsonNode node, String fieldName) {
@@ -410,7 +430,7 @@ public class VersionCheckService {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-    private boolean hasText(String value) {
+    private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
