@@ -86,7 +86,7 @@ const handleGenerateEpisodeStoryboard = useCallback(async (episode: StoryboardEp
     if (!confirmed) return;
 
     try {
-      await storyboardApi.clearEpisodeContent(episode.id);
+      await storyboardApi.clearEpisodeContent(episode.id, episode.version);
       const pipelineId = addPipeline({
         label: `AI 分镜 · 第 ${displayNumber} 集`,
         projectId,

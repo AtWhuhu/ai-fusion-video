@@ -19,7 +19,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+
 
 /**
  * 查询分镜场次镜头列表工具（get_storyboard_scene_items）
@@ -31,6 +38,7 @@ import java.util.*;
 @RequiredArgsConstructor
 @Slf4j
 public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
+    private final StoryboardToolQueries tools;
 
     /** 场景的空间俯视布局图子资产类型：是给人看的布局示意图，不作为模型参考图 */
     private static final String SCENE_TOPDOWN_ITEM_TYPE = "topdown";
@@ -91,7 +99,19 @@ public class GetStoryboardSceneItemsToolExecutor implements ToolExecutor {
                             "type": "integer",
                             "description": "场景资产ID；返回全项目所有使用该场景的镜头（跨集跨场次聚合）"
                         }
-                    }
+                    },
+                    "anyOf": [
+                        {
+                            "required": [
+                                "storyboardSceneId"
+                            ]
+                        },
+                        {
+                            "required": [
+                                "storyboardItemId"
+                            ]
+                        }
+                    ]
                 }
                 """;
     }

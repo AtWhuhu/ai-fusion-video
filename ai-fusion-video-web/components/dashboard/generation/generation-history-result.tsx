@@ -1,17 +1,24 @@
 "use client";
+import { ManagedMediaLink } from "@/components/media/managed-media-link";
+
+import { ManagedVideo } from "@/components/media/managed-video";
+
 
 import type { SyntheticEvent } from "react";
 import {
   ArrowDownToLine,
   Expand,
   ImagePlus,
+  CircleAlert,
   Loader2,
   PackagePlus,
   Play,
+  Square,
 } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { SafeImage } from "@/components/ui/safe-image";
+import { SafeImage } from "@/components/media/managed-image";
+import { useMediaUrl } from "@/hooks/use-media-url";
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +30,7 @@ import {
   getGenerationErrorSummary,
   getResultMediaUrl,
   getResultPreviewUrl,
+  getTaskStatus,
 } from "./generation-utils";
 import type { GenerationMediaPreview } from "./generation-media-preview-dialog";
 
@@ -31,6 +39,8 @@ interface GenerationHistoryResultProps {
   item: GenerationResultItem;
   prompt: string;
   taskFailed: boolean;
+  taskStatus: ReturnType<typeof getTaskStatus>;
+  taskCancelRequested: boolean;
   taskError?: string | null;
   onUseReference: (item: GenerationResultItem) => void;
   onAddAsset: (item: GenerationResultItem, prompt: string) => void;
@@ -55,6 +65,8 @@ export function GenerationHistoryResult({
   item,
   prompt,
   taskFailed,
+  taskStatus,
+  taskCancelRequested,
   taskError,
   onUseReference,
   onAddAsset,
@@ -64,10 +76,47 @@ export function GenerationHistoryResult({
   const previewUrl = resolveMediaUrl(getResultPreviewUrl(item));
   const resultReady = Boolean(mediaUrl || previewUrl);
   const displayUrl = mediaUrl || previewUrl;
+  const access = useMediaUrl(displayUrl);
+
+  if (access.deleted) {
+    return (
+      <div role="status" className="flex aspect-video items-center justify-center rounded-xl border border-border/30 bg-card/50 text-xs text-muted-foreground">
+        素材已删除
+      </div>
+    );
+  }
 
   if (!resultReady) {
-    const failed = taskFailed || item.status === 2;
+    const stopped = taskStatus.tone === "cancelled";
+    const stopping = !stopped && taskCancelRequested;
+    const failed = !stopped && !stopping && (taskFailed || item.status === 2);
+    const attention = taskStatus.tone === "attention";
+    const waiting = !failed && !stopped && !attention && taskStatus.tone !== "success";
     const failureMessage = item.errorMsg || taskError || "未生成结果";
+    const label = failed
+      ? "生成失败"
+      : stopped
+        ? "已取消"
+        : attention
+          ? taskStatus.label
+          : stopping
+            ? "正在停止"
+            : taskStatus.tone === "success"
+              ? "暂无结果"
+              : taskStatus.label;
+    const message = failed
+      ? getGenerationErrorSummary(failureMessage)
+      : stopped
+        ? "这项生成已停止，已完成的其他结果会保留"
+        : attention
+          ? "可在任务详情中查看处理记录"
+          : stopping
+            ? "等待供应商确认结束，不会自动发布取消后的结果"
+            : taskStatus.tone === "success"
+              ? "这项没有可预览的媒体"
+              : taskStatus.tone === "queued"
+                ? "等待可用的生成名额"
+                : "完成后自动显示";
     const placeholderContent = (
       <>
         <span
@@ -75,23 +124,27 @@ export function GenerationHistoryResult({
             "grid size-9 shrink-0 place-items-center rounded-xl",
             failed
               ? "bg-destructive/8 text-destructive"
-              : "bg-primary/8 text-primary",
+              : stopped
+                ? "bg-muted text-muted-foreground"
+                : "bg-primary/8 text-primary",
           )}
         >
           {failed ? (
             <ImagePlus className="size-4" />
+          ) : waiting ? (
+            <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
+          ) : stopped ? (
+            <Square className="size-4" />
           ) : (
-            <Loader2 className="size-4 animate-spin" />
+            <CircleAlert className="size-4" />
           )}
         </span>
         <span className="min-w-0 text-left">
           <span className="block text-xs font-medium">
-            {failed ? "生成失败" : "正在生成"}
+            {label}
           </span>
           <span className="mt-0.5 line-clamp-2 break-all text-[10px] text-muted-foreground">
-            {failed
-              ? getGenerationErrorSummary(failureMessage)
-              : "完成后自动显示"}
+            {message}
           </span>
         </span>
       </>
@@ -142,6 +195,7 @@ export function GenerationHistoryResult({
               onPreview({ type: "image", url: displayUrl, title: "生成图片" })
             }
             title="在当前页预览图片"
+            aria-label="预览生成图片"
             className="relative block w-full cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             <SafeImage
@@ -166,6 +220,7 @@ export function GenerationHistoryResult({
               })
             }
             title="在当前页预览视频"
+            aria-label="预览生成视频"
             className="relative block aspect-video w-full overflow-hidden bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           >
             {previewUrl ? (
@@ -176,7 +231,7 @@ export function GenerationHistoryResult({
                 fallbackType="image"
               />
             ) : (
-              <video
+              <ManagedVideo
                 src={mediaUrl}
                 muted
                 playsInline
@@ -242,7 +297,7 @@ export function GenerationHistoryResult({
           </Button>
         </div>
         {mediaUrl && (
-          <a
+          <ManagedMediaLink
             href={mediaUrl}
             download
             target="_blank"
@@ -252,7 +307,7 @@ export function GenerationHistoryResult({
             className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <ArrowDownToLine className="h-3.5 w-3.5" />
-          </a>
+          </ManagedMediaLink>
         )}
       </div>
     </article>

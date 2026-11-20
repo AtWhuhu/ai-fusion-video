@@ -1,21 +1,21 @@
 "use client";
+import { useResourceInvalidation } from "@/hooks/use-resource-invalidation";
 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Images, Loader2, Plus, X } from "lucide-react";
+import { useCommandRequestKey } from "@/hooks/use-command-request-key";
 import { assetApi, type Asset, type AssetItem, type AssetWithItems } from "@/lib/api/asset";
 import { usePipelineStore } from "@/lib/store/pipeline-store";
 import { Button } from "@/components/ui/button";
+import { OverlayScrollArea } from "@/components/dashboard/overlay-scroll-area";
 import { AssetSidebar } from "./_components/asset-sidebar";
 import { MasterAssetForm, MasterAssetHeader } from "./_components/asset-master-panels";
 import { AssetItemTabs } from "./_components/asset-item-tabs";
 import { AssetItemWorkspace } from "./_components/asset-item-workspace";
+import { getApiErrorMessage } from "@/lib/api/api-error";
 import { parseProperties } from "./_components/asset-types";
-import {
-  SceneBlockingEditor,
-  type SceneBlocking,
-} from "./_components/scene-blocking-editor";
 
 function enqueueAssetGeneration(
   projectId: number,
@@ -65,8 +65,8 @@ export default function ProjectAssetsPage() {
     selectedAssetIdRef.current = selectedAssetId;
   }, [selectedAssetId]);
 
-  const loadAssets = useCallback(async (keepSelection = true) => {
-    setLoading(true);
+  const loadAssets = useCallback(async (keepSelection = true, background = false) => {
+    if (!background) setLoading(true);
     try {
       const data = await assetApi.listWithItems(projectId);
       setAssets(data);
@@ -87,6 +87,7 @@ export default function ProjectAssetsPage() {
   }, [projectId]);
 
   useEffect(() => { void loadAssets(false); }, [loadAssets]);
+  useResourceInvalidation("assets", () => loadAssets(true, true));
 
   useEffect(() => {
     if (loading || !highlightId || assets.length === 0) return;
@@ -112,132 +113,94 @@ export default function ProjectAssetsPage() {
     setSelectedItemId(asset.items[0]?.id ?? null);
   };
 
-  const saveAsset = async (payload: { name: string; type: string; description: string }) => {
-    if (!selectedAsset || !payload.name.trim()) return;
+  const requests = useCommandRequestKey();
+
+  const saveAsset = async (base: AssetWithItems, payload: { name: string; type: string; description: string }) => {
+    if (!base || !payload.name.trim()) return;
     setSaving(true);
     try {
-      await assetApi.update({
-        id: selectedAsset.id,
+      const data = {
+        id: base.id,
+        version: base.version,
         type: payload.type,
         name: payload.name.trim(),
         description: payload.description.trim(),
-        // 合并已有属性，不能整体替换：直接覆盖会把角色/场景的分类属性（性别、年龄、
-        // 外貌、服装、场景类型……）整块丢掉。
-        properties: {
-          ...parseProperties(selectedAsset.properties),
-          setting: payload.description.trim(),
-        },
-      });
+        properties: { ...base.properties, setting: payload.description.trim() },
+      };
+      await assetApi.update(data, requests.forPayload({ operation: "update", ...data }));
+      requests.clear();
       await loadAssets(true);
     } finally {
       setSaving(false);
     }
-  };
-
-  /** 保存场景的空间锚点表（锚点 / 机位 / 角色默认站位） */
-  const saveSceneBlocking = async (blocking: SceneBlocking) => {
-    if (!selectedAsset) return;
-    setSaving(true);
-    try {
-      await assetApi.update({
-        id: selectedAsset.id,
-        properties: {
-          ...parseProperties(selectedAsset.properties),
-          blocking,
-        },
-      });
-      await loadAssets(true);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  /**
-   * 让 AI 通读本场景在全片中出现的所有镜头，反推出一整套空间锚点。
-   *
-   * 走 scene_blocking_infer 流水线：后端读镜头剧情 → 归纳 anchors/cameras/roles →
-   * 走 save_scene_blocking 整表替换 properties.blocking。会覆盖现有手工锚点，故先二次确认。
-   */
-  const inferSceneBlocking = async (asset: AssetWithItems) => {
-    const ok = await confirm({
-      title: "AI 推断场景锚点",
-      description: `将通读「${asset.name}」在全片中出现的所有镜头，推断出场地结构锚点、可用机位与角色站位。推断结果是整表替换，当前已配置的锚点会被覆盖。确定继续吗？`,
-      confirmText: "开始推断",
-    });
-    if (!ok) return;
-    const { addPipeline, setNotificationOpen } = usePipelineStore.getState();
-    addPipeline({
-      label: `推断场景锚点 · ${asset.name}`,
-      projectId,
-      request: {
-        agentType: "scene_blocking_infer",
-        toolExecutionMode: "FULL_ACCESS",
-        category: "pipeline",
-        title: `推断场景锚点 · ${asset.name}`,
-        projectId,
-        context: { sceneAssetId: asset.id },
-      },
-      onComplete: () => void loadAssets(true),
-    });
-    setNotificationOpen(true);
   };
 
   const createAsset = async (name: string, type: string, description: string) => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const created = await assetApi.create({
+      const data = {
         projectId,
         type,
         name: name.trim(),
         description: description.trim(),
         properties: { setting: description.trim() },
-      });
+      };
+      const created = await assetApi.create(data, requests.forPayload({ operation: "create", ...data }));
+      requests.clear();
       await loadAssets(false);
       setSelectedAssetId(created.id);
-      setSelectedItemId(null);
+      setSelectedItemId(created.items[0]?.id ?? null);
       setCreatingAsset(false);
-      setCreatingItem(true);
+      setCreatingItem(created.items.length === 0);
     } finally {
       setSaving(false);
     }
   };
 
   const saveItem = async (item: AssetItem, name: string, appearance: string, imageUrl: string) => {
-    if (!name.trim()) return;
+    if (!name.trim()) throw new Error("名称不能为空");
     setSaving(true);
     try {
-      await assetApi.updateItem({
+      const data = {
         id: item.id,
+        version: item.version,
+        assetVersion: item.assetVersion,
         name: name.trim(),
         imageUrl: imageUrl.trim(),
         properties: {
           ...parseProperties(item.properties),
           appearanceDescription: appearance.trim(),
         },
-      });
+      };
+      const updated = await assetApi.updateItem(data, requests.forPayload({ operation: "updateItem", ...data }));
+      requests.clear();
       await loadAssets(true);
+      return updated;
     } finally {
       setSaving(false);
     }
   };
 
   const deleteAsset = async (asset: Asset) => {
-    const ok = await confirm({ title: "删除主资产", description: `确定删除主资产“${asset.name}”及其所有子资产吗？此操作无法撤销。`, variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
-    await assetApi.delete(asset.id);
+    const ok = await confirm({ title: "删除主资产", description: `确定删除主资产“${asset.name}”及其所有子资产吗？已有引用会显示失效，媒体文件会保留。`, variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
+    await assetApi.delete(asset.id, asset.version, requests.forPayload({ operation: "delete", id: asset.id, version: asset.version }));
+    requests.clear();
     await loadAssets(false);
   };
 
   const deleteItem = async (item: AssetItem) => {
-    const ok = await confirm({ title: "删除子资产", description: `确定删除子资产“${item.name || "未命名"}”吗？此操作无法撤销。`, variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
+    const ok = await confirm({ title: "删除子资产", description: `确定删除子资产“${item.name || "未命名"}”吗？已有引用会显示失效，媒体文件会保留。`, variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
     const nextItem = selectedAsset?.items.find((candidate) => candidate.id !== item.id);
-    await assetApi.deleteItem(item.id);
+    await assetApi.deleteItem(item.id, item.version, item.assetVersion, requests.forPayload({ operation: "deleteItem", id: item.id, version: item.version, parentVersion: item.assetVersion }));
+    requests.clear();
     await loadAssets(true);
     setSelectedItemId(nextItem?.id ?? null);
     setCreatingItem(!nextItem);
   };
 
   const createItem = async (
+    expectedParentVersion: number,
     name: string,
     appearance: string,
     imageUrl: string,
@@ -246,15 +209,16 @@ export default function ProjectAssetsPage() {
     if (!selectedAsset || !name.trim()) return;
     setSaving(true);
     try {
-      const created = await assetApi.createItem({
+      const data = {
         assetId: selectedAsset.id,
+        parentVersion: expectedParentVersion,
         name: name.trim(),
         imageUrl: imageUrl.trim() || undefined,
-        properties: {
-          appearanceDescription: appearance.trim(),
-        },
+        properties: { appearanceDescription: appearance.trim() },
         sortOrder: selectedAsset.items.length,
-      });
+      };
+      const created = await assetApi.createItem(data, requests.forPayload({ operation: "createItem", ...data }));
+      requests.clear();
       await loadAssets(true);
       setSelectedItemId(created.id);
       setCreatingItem(false);
@@ -333,77 +297,60 @@ export default function ProjectAssetsPage() {
           }
           onRefresh={() => void loadAssets(true)}
         />
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[30px] border border-border/50 bg-card/75 shadow-[0_24px_70px_-42px_rgba(15,23,42,.45)]">
+        <section aria-label="资产工作区" className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[30px] border border-border/50 bg-card/75 shadow-[0_24px_70px_-42px_rgba(15,23,42,.45)]">
           {creatingAsset ? (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <MasterAssetForm
-                saving={saving}
-                onCancel={() => setCreatingAsset(false)}
-                onSubmit={createAsset}
-              />
-            </div>
+            <MasterAssetForm
+              saving={saving}
+              onCancel={() => setCreatingAsset(false)}
+              onSubmit={createAsset}
+            />
           ) : selectedAsset ? (
-            <>
+            <OverlayScrollArea className="min-h-0 flex-1" viewportClassName="scroll-p-1">
               <MasterAssetHeader
-                key={`${selectedAsset.id}-${selectedAsset.updateTime}`}
+                key={selectedAsset.id}
                 asset={selectedAsset}
                 saving={saving}
                 onSave={saveAsset}
-                onDelete={() => void deleteAsset(selectedAsset)}
+                onDelete={(base) => void deleteAsset(base).catch(cause => setError(getApiErrorMessage(cause)))}
               />
-              {/* 头部以下整体滚动：空间锚点编辑器内容很高，若放在固定高度 flex 列里
-                  会把下方子资产工作区挤成 0 并被 overflow-hidden 裁掉，导致无法滚动 */}
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {selectedAsset.type === "scene" && (
-                  <SceneBlockingEditor
-                    key={`blocking-${selectedAsset.id}-${selectedAsset.updateTime}`}
-                    asset={selectedAsset}
-                    characters={assets.filter((asset) => asset.type === "character")}
-                    saving={saving}
-                    onSave={saveSceneBlocking}
-                    onAssetChanged={() => void loadAssets(true)}
-                    onInferBlocking={() => void inferSceneBlocking(selectedAsset)}
-                  />
-                )}
-                <AssetItemTabs
-                  items={selectedAsset.items}
-                  assetType={selectedAsset.type}
-                  selectedItemId={selectedItemId}
-                  creating={creatingItem}
-                  onSelect={(id) => {
-                    setCreatingItem(false);
-                    setSelectedItemId(id);
-                  }}
-                  onCreate={() => {
-                    setCreatingItem(true);
-                    setSelectedItemId(null);
-                  }}
-                  onGenerate={() =>
-                    enqueueAssetGeneration(
-                      projectId,
-                      [selectedAsset.id],
-                      selectedAsset.items.map((item) => item.id),
-                      `批量生成 ${selectedAsset.name} 的子资产图`,
-                    )
-                  }
-                />
+              <AssetItemTabs
+                items={selectedAsset.items}
+                assetType={selectedAsset.type}
+                selectedItemId={selectedItemId}
+                creating={creatingItem}
+                onSelect={(id) => {
+                  setCreatingItem(false);
+                  setSelectedItemId(id);
+                }}
+                onCreate={() => {
+                  setCreatingItem(true);
+                  setSelectedItemId(null);
+                }}
+                onGenerate={() =>
+                  enqueueAssetGeneration(
+                    projectId,
+                    [selectedAsset.id],
+                    selectedAsset.items.map((item) => item.id),
+                    `批量生成 ${selectedAsset.name} 的子资产图`,
+                  )
+                }
+              />
+              <div>
                 {creatingItem || selectedItem ? (
                   <AssetItemWorkspace
                     key={
                       creatingItem
                         ? `create-${selectedAsset.id}`
-                        : `${selectedItem?.id}-${selectedItem?.updateTime}`
+                        : String(selectedItem?.id)
                     }
                     mode={creatingItem ? "create" : "edit"}
                     item={creatingItem ? null : selectedItem}
                     assetType={selectedAsset.type}
+                    parentVersion={selectedAsset.version}
                     saving={saving}
-                    projectId={projectId}
                     onCreate={createItem}
                     onSave={saveItem}
-                    onDelete={() => {
-                      if (selectedItem) void deleteItem(selectedItem);
-                    }}
+                    onDelete={(base) => void deleteItem(base).catch(cause => setError(getApiErrorMessage(cause)))}
                     onCancelCreate={() => {
                       setCreatingItem(false);
                       setSelectedItemId(selectedAsset.items[0]?.id ?? null);
@@ -425,14 +372,14 @@ export default function ProjectAssetsPage() {
                   </div>
                 )}
               </div>
-            </>
+            </OverlayScrollArea>
           ) : (
             <div className="flex h-full flex-col items-center justify-center">
               <Images className="mb-3 h-10 w-10 text-muted-foreground/20" />
               <p className="text-sm font-medium">选择主资产</p>
             </div>
           )}
-        </main>
+        </section>
       </div>
     </div>
   );

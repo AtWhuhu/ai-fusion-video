@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">简体中文</a> | <strong>English</strong>
+  <a href="README.md" target="_blank" rel="noopener noreferrer">简体中文</a> | <strong>English</strong>
 </p>
 
 <h1 align="center">AI Fusion Video</h1>
@@ -11,8 +11,8 @@
 <p align="center">An Agent-driven video creation platform</p>
 
 <p align="center">
-  <a href="https://github.com/Stonewuu/ai-fusion-video/releases"><img src="https://img.shields.io/github/v/release/Stonewuu/ai-fusion-video?display_name=tag" alt="GitHub Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Stonewuu/ai-fusion-video" alt="MIT License" /></a>
+  <a href="https://github.com/Stonewuu/ai-fusion-video/releases" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/v/release/Stonewuu/ai-fusion-video?display_name=tag" alt="GitHub Release" /></a>
+  <a href="LICENSE" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/license/Stonewuu/ai-fusion-video" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Java-21-ED8B00" alt="Java 21" />
   <img src="https://img.shields.io/badge/Next.js-16-000000" alt="Next.js 16" />
 </p>
@@ -21,13 +21,82 @@
   <img src="https://stonewuu.github.io/Stonewuu/star-history/Stonewuu/ai-fusion-video.svg" alt="GitHub Star History" width="920" />
 </p>
 
-<table align="center" style="margin: 0 auto; display: table;">
-  <tr>
-    <td align="center">
-      <b>Want to feature your brand here? <a href="mailto:me@stonewu.com">Contact me</a></b>
-    </td>
-  </tr>
+## 🤝 Sponsors
+
+Thank you to the following sponsors for supporting AI Fusion Video!
+
+<table width="100%">
+  <tbody>
+    <!-- Add one row per sponsor: banners span both columns; square logos sit beside the description. Keep the contact link after the table. -->
+    <tr>
+      <td colspan="2" valign="top">
+        <p align="center">
+          <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">
+            <img src="assets/sponsors/infistar-banner-en.png" alt="Infistar.cc: a one-stop API platform for leading AI models worldwide" width="920" />
+          </a>
+        </p>
+        <p><strong>Thank you to <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">Infistar.cc (无限星河)</a> for sponsoring this project! | All-model API access · Powering AI video creation</strong></p>
+        <p>
+          🔥 <strong>Reliable service at low prices</strong>: Rates as low as <strong>1% of official pricing</strong>, with transparent pricing multipliers; redundant nodes and intelligent routing protect against HTTP 429 rate limits and circuit-breaker events;<br />
+          🎬 <strong>Leading models in one place</strong>: Access Claude, GPT, Gemini, DeepSeek, and more with a single API key for script breakdown and storyboard planning;<br />
+          🤖 <strong>Built for Agent workflows</strong>: High concurrency and low latency support long-running, unattended sessions and continuous generation in the AI Fusion Video assistant and multi-step Agent tasks;<br />
+          🎁 <strong>Exclusive welcome offer</strong>: Sign up through the <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">exclusive referral link</a> to receive <strong>$5 in trial credits</strong> and a <strong>special offer on your first top-up</strong>!
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/ll2-logo.jpg" alt="LL2 Logo" width="144" height="144" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>Thank you to <a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer">LL2</a> for sponsoring this project! | In-house compute · Wholesale rates through direct provider contracts.</strong></p>
+        <p>
+          MiniMax-H3 <strong>CNY 0.05/s</strong> (self-hosted, full-quality 768P);
+          deepseek-v4.1-flash at <strong>40% of official prices</strong>;<br />
+          Seedance series from <strong>70% of official prices</strong>;
+          upscaling at <strong>CNY 0.018/s</strong>;
+          Vega series from <strong>60% of official prices</strong>
+        </p>
+        <p><a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer"><strong>Sign up for LL2 →</strong></a></p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/metasota-logo.png" alt="MetaSota logo" width="160" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>Thank you to <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer">MetaSota</a> for sponsoring this project! | MiniMax H3 Video Generation API</strong></p>
+        <p>
+          MetaSota offers MiniMax H3 video generation at the following rates:<br />
+          480p: <strong>CNY 0.06/s</strong>; 768p: <strong>CNY 0.09/s</strong>;
+          1080p (without upscaling): <strong>CNY 0.14/s</strong>; 2K: <strong>CNY 0.15/s</strong>.
+        </p>
+        <p>Generate 30-second videos with multiple reference inputs and synchronized audio. The OpenAI-compatible API also works with ComfyUI, so you don’t need to deploy your own GPU.</p>
+        <p>🎁 Sign up through the <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer"><strong>exclusive AI-FUSION-VIDEO link</strong></a> to claim bonus credits and special offers.</p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://youkou.cc/" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/erchun-logo.jpg" alt="Erchun Technology logo" width="144" height="144" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>Thank you to <a href="https://youkou.cc/" target="_blank" rel="noopener noreferrer">Erchun AIGC (贰春)</a> for sponsoring this project | Multiple channels and models</strong></p>
+        <p>Images from <strong>CNY 0.01 each</strong> · H3 video from <strong>CNY 0.03/second</strong>. Seedance offers official and special-price channels, starting at <strong>10% of official prices</strong>.</p>
+        <p>Hundreds of models · Dozens of channels · Choose freely</p>
+      </td>
+    </tr>
+  </tbody>
 </table>
+
+<p align="center">
+  <strong>Want to feature your brand here? <a href="mailto:me@stonewu.com" target="_blank" rel="noopener noreferrer">Contact me</a></strong>
+</p>
 
 <table align="center">
   <thead>
@@ -41,9 +110,15 @@
     <tr>
       <td align="center" width="33%">
         <img src="https://image.stonewu.com/file/wechat-qrcode.png" alt="Author WeChat QR code" width="220" />
+        <p align="center">
+          <b style="color:red"> Please include a note with your friend request; requests without a note will not be accepted. </b>
+        </p>
       </td>
       <td align="center" width="33%">
         <img src="https://image.stonewu.com/file/ai-fusion-video-qrcode-group.png" alt="Community group QR code" width="220" />
+        <p align="center">
+          <b>Group 1 is full with 500 members. Please join Group 2.</b>
+        </p>
       </td>
       <td align="center" width="33%">
         <img src="https://image.stonewu.com/file/alipay_qrcode.png" alt="Donation QR code" width="220" />
@@ -52,9 +127,9 @@
   </tbody>
 </table>
 
-<p align="center">
+<!-- <p align="center">
   <sub><b>WeChat disables QR-code invitations once a group has more than 200 members. To join, add the author on WeChat and mention "Rongguang (融光)" in your request.</b></sub>
-</p>
+</p> -->
 
 <hr/>
 
@@ -62,7 +137,31 @@ AI Fusion Video is an Agent-driven platform for video creators. It brings projec
 
 This repository includes a Java backend, a Next.js frontend, and Docker Compose deployment files. After the first launch, follow the setup wizard to create an administrator account and start using the platform.
 
+## Product Video
+
+https://github.com/user-attachments/assets/acd181a0-541c-4163-a000-fa9ed72a5106
+
 ## Features
+
+### Infinite canvas
+
+Bring scripts, storyboards, characters, and media together on one canvas. Connect the steps you need to generate images and videos, assemble shots, and export the finished video. You can preview reference images and play clips directly in their nodes.
+
+Use Auto Arrange to tidy a busy canvas. Save a workflow as a reusable template, or share the canvas with teammates to edit together, leave comments, and save versions.
+
+### AI Fusion Video Assistant (融光助手)
+
+Open the assistant in a project or on the canvas. Reference a script, storyboard, asset, or selected node when asking it to revise content, plan shots, or generate media. You can also attach images, video, audio, or files when the selected model supports them. Replies appear as they are generated, and you can pick up the conversation after refreshing or returning to it.
+
+In Agent Settings, choose your usual instructions, tools, and default Skills. The assistant follows the permissions you select for the conversation, can use external tools connected through MCP or delegate tasks to other agents, and shows progress in the chat.
+
+### ComfyUI workflows
+
+Connect a ComfyUI instance under Settings → AI Configuration. Import the workflow exported from ComfyUI in API JSON format, map its prompt, reference media, and outputs, then validate and test it. Publish the workflow and link it to an image or video model.
+
+Select that model in the generation tools or on the canvas to run the workflow. The form shows which inputs you need and how many reference images it accepts.
+
+### Other features
 
 | Area | What you can do |
 | --- | --- |
@@ -71,15 +170,8 @@ This repository includes a Java backend, a Next.js frontend, and Docker Compose 
 | Storyboarding | Build storyboards from scripts and edit shot content, reference assets, and generation results |
 | Image and video generation | Generate images and video from text or reference assets while tracking background job progress |
 | Asset management | Organize project assets and reusable image and video resources |
-| Agent workspace | Use streaming chat, multimodal context, tool permissions, Skills, MCP, and sub-Agents |
 | Models and storage | Configure text, image, and video models centrally, with local or object storage |
 | System administration | Use the setup wizard, manage users and roles, reset passwords, and check for updates |
-
-### Agents and tools
-
-The built-in Agent workspace can hold ongoing conversations grounded in project content, accept multimodal inputs such as images, video, audio, and files, and display reasoning, tool calls, and task status in the interface.
-
-Agents run on AgentScope with support for Skills, MCP, and sub-Agents. Conversations and run state are persisted, while model capabilities and tool permissions can be configured per conversation for multi-step creative work.
 
 ### Model and generation protocols
 
@@ -94,6 +186,8 @@ Media assets can be stored on local disk or in an S3-compatible object store. Ag
 ## UI demos
 
 https://github.com/user-attachments/assets/fe71cbb8-f9d9-4351-9a4c-cb8a0a6af7ba
+
+https://github.com/user-attachments/assets/24d9443b-e463-405c-8ada-108236b4d6c2
 
 https://github.com/user-attachments/assets/2f1de26c-5cd5-4be3-ad2e-81be2edd6956
 
@@ -354,5 +448,5 @@ Before submitting, make sure the change has a clear scope and does not include s
 [MIT License](LICENSE)
 
 <p align="center">
-  <sub>Built by <a href="https://github.com/Stonewuu">Stonewu</a></sub>
+  <sub>Built by <a href="https://github.com/Stonewuu" target="_blank" rel="noopener noreferrer">Stonewu</a></sub>
 </p>

@@ -1,59 +1,34 @@
 package com.stonewu.fusion.service.ai.provider;
 
+import com.stonewu.fusion.service.ai.agentscope.message.AgentModelResponseFailure;
+
 import cn.hutool.core.util.StrUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.openai.client.OpenAIClient;
+import com.openai.client.OpenAIClientImpl;
+import com.openai.client.okhttp.OkHttpClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.core.ClientOptions;
 import com.openai.core.JsonValue;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.Reasoning;
 import com.openai.models.ReasoningEffort;
-import com.openai.models.responses.EasyInputMessage;
-import com.openai.models.responses.FunctionTool;
-import com.openai.models.responses.ResponseCreateParams;
-import com.openai.models.responses.ResponseFunctionToolCall;
-import com.openai.models.responses.ResponseInputContent;
-import com.openai.models.responses.ResponseInputFile;
-import com.openai.models.responses.ResponseInputImage;
-import com.openai.models.responses.ResponseInputItem;
-import com.openai.models.responses.ResponseInputText;
-import com.openai.models.responses.ResponseOutputItem;
-import com.openai.models.responses.ResponseStreamEvent;
+import com.openai.models.responses.*;
 import com.stonewu.fusion.entity.ai.ApiConfig;
 import com.stonewu.fusion.service.ai.proxy.AiProxySupport;
-import io.agentscope.core.message.AudioBlock;
-import io.agentscope.core.message.Base64Source;
-import io.agentscope.core.message.ContentBlock;
-import io.agentscope.core.message.DataBlock;
-import io.agentscope.core.message.ImageBlock;
-import io.agentscope.core.message.Msg;
-import io.agentscope.core.message.MsgRole;
-import io.agentscope.core.message.Source;
-import io.agentscope.core.message.TextBlock;
-import io.agentscope.core.message.ThinkingBlock;
-import io.agentscope.core.message.ToolResultBlock;
-import io.agentscope.core.message.ToolUseBlock;
-import io.agentscope.core.message.URLSource;
-import io.agentscope.core.message.VideoBlock;
-import io.agentscope.core.model.ChatResponse;
-import io.agentscope.core.model.ChatModelBase;
-import io.agentscope.core.model.ChatUsage;
-import io.agentscope.core.model.GenerateOptions;
-import io.agentscope.core.model.ToolSchema;
+import io.agentscope.core.message.*;
+import io.agentscope.core.model.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
+import java.net.Proxy;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -62,36 +37,57 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
     private static final String DEFAULT_BASE_URL = "https://api.openai.com";
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE =
-            new TypeReference<>() {};
+            new TypeReference<>() {
+            };
 
     private final ApiConfig apiConfig;
     private final String apiKey;
     private final String baseUrl;
     private final String modelName;
     private final GenerateOptions defaultGenerateOptions;
+    private final boolean singleRequest;
+    private final AtomicBoolean submitted = new AtomicBoolean();
+
+    public OpenAiResponsesAgentScopeModel(ApiConfig apiConfig, String apiKey, String baseUrl,
+                                          String modelName, GenerateOptions options) {
+        this(apiConfig, apiKey, baseUrl, modelName, options, false);
+    }
 
     @Override
     protected Flux<ChatResponse> doStream(List<Msg> messages, List<ToolSchema> tools,
                                           GenerateOptions runtimeOptions) {
         return Flux.<ChatResponse>create(sink -> {
+            if (singleRequest && !submitted.compareAndSet(false, true)) {
+                sink.error(new IllegalStateException("此模型请求已经发送，不能自动重发"));
+                return;
+            }
             GenerateOptions effectiveOptions = mergeOptions(runtimeOptions);
             ResponseCreateParams params = buildRequestParams(messages, tools, effectiveOptions);
             Map<String, ResponseFunctionToolCall> functionCallsByItemId = new HashMap<>();
             boolean[] sawToolCall = {false};
             OpenAIClient client = buildClient();
+            var activeStream = Disposables.swap();
+            sink.onCancel(() -> {
+                activeStream.dispose();
+                client.close();
+            });
 
             try (StreamResponse<ResponseStreamEvent> streamResponse = client.responses().createStreaming(params);
                  var eventStream = streamResponse.stream()) {
+                activeStream.update(streamResponse::close);
                 var iterator = eventStream.iterator();
                 while (!sink.isCancelled() && iterator.hasNext()) {
                     ResponseStreamEvent event = iterator.next();
                     rememberFunctionCall(event, functionCallsByItemId);
 
                     if (event.isError()) {
-                        throw new RuntimeException("OpenAI Responses 流式调用失败: " + event.asError());
+                        var failure = event.asError();
+                        throw new AgentModelResponseFailure(failure.code().orElse(null), failure.message());
                     }
                     if (event.isFailed()) {
-                        throw new RuntimeException("OpenAI Responses 调用失败: " + event.asFailed());
+                        var failure = event.asFailed().response().error();
+                        throw new AgentModelResponseFailure(failure.map(error -> error.code().asString()).orElse(null),
+                                failure.map(error -> error.message()).orElse("模型请求失败，请稍后继续。"));
                     }
                     if (event.isIncomplete()) {
                         throw new RuntimeException("OpenAI Responses 返回未完成结果: " + event.asIncomplete());
@@ -117,9 +113,13 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
 
                     event.functionCallArgumentsDone().ifPresent(toolCallDone -> {
                         ResponseFunctionToolCall functionCall = functionCallsByItemId.get(toolCallDone.itemId());
-                        String toolCallId = functionCall != null ? functionCall.callId() : toolCallDone.itemId();
-                        String toolName = functionCall != null ? functionCall.name() : toolCallDone.name();
-                        String arguments = functionCall != null ? functionCall.arguments() : toolCallDone.arguments();
+                        if (functionCall == null) {
+                            throw new IllegalStateException("模型返回的工具调用缺少身份信息");
+                        }
+                        String toolCallId = functionCall.callId();
+                        String toolName = functionCall.name();
+                        // output_item.added 的 arguments 通常为空，完成事件才携带完整参数。
+                        String arguments = toolCallDone.arguments();
                         sawToolCall[0] = true;
                         sink.next(buildChunk(
                                 List.of(ToolUseBlock.builder()
@@ -141,9 +141,12 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
                 }
                 sink.complete();
             } catch (Exception e) {
-                log.warn("OpenAI Responses 调用失败: model={}, message={}", getModelName(), e.getMessage());
-                sink.error(e);
+                if (!sink.isCancelled()) {
+                    log.warn("OpenAI Responses 调用失败: model={}, message={}", getModelName(), e.getMessage());
+                    sink.error(e);
+                }
             } finally {
+                activeStream.dispose();
                 client.close();
             }
         }).subscribeOn(Schedulers.boundedElastic());
@@ -154,7 +157,8 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
         return modelName;
     }
 
-    ResponseCreateParams buildRequestParams(List<Msg> messages, List<ToolSchema> tools, GenerateOptions runtimeOptions) {
+    ResponseCreateParams buildRequestParams(List<Msg> messages, List<ToolSchema> tools,
+                                            GenerateOptions runtimeOptions) {
         GenerateOptions effectiveOptions = mergeOptions(runtimeOptions);
         ResponseCreateParams.Builder builder = ResponseCreateParams.builder()
                 .model(resolveModelName(effectiveOptions));
@@ -330,14 +334,11 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
                 continue;
             }
 
-            FunctionTool.Builder builder = FunctionTool.builder().name(tool.getName());
+            FunctionTool.Builder builder = FunctionTool.builder().name(tool.getName())
+                    .strict(Boolean.TRUE.equals(tool.getStrict()));
             if (StrUtil.isNotBlank(tool.getDescription())) {
                 builder.description(tool.getDescription());
             }
-            if (tool.getStrict() != null) {
-                builder.strict(tool.getStrict());
-            }
-
             FunctionTool.Parameters.Builder parametersBuilder = FunctionTool.Parameters.builder();
             Map<String, Object> parameters = tool.getParameters();
             if (parameters != null) {
@@ -376,6 +377,12 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
     }
 
     private OpenAIClient buildClient() {
+        if (singleRequest) {
+            return new OpenAIClientImpl(ClientOptions.builder()
+                    .apiKey(apiKey).baseUrl(resolveOpenAiJavaBaseUrl()).maxRetries(0)
+                    .timeout(Duration.ofMinutes(25)).responseValidation(false)
+                    .httpClient(new OkHttpClient(SingleRequestModelSupport.client(apiConfig))).build());
+        }
         OpenAIOkHttpClient.Builder builder = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
                 .baseUrl(resolveOpenAiJavaBaseUrl())
@@ -384,7 +391,7 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
                 .responseValidation(false);
 
         if (apiConfig != null) {
-            java.net.Proxy proxy = AiProxySupport.javaProxyOrNull(apiConfig);
+            Proxy proxy = AiProxySupport.javaProxyOrNull(apiConfig);
             if (proxy != null) {
                 builder.proxy(proxy);
             }
@@ -467,7 +474,8 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
         textBuffer.setLength(0);
     }
 
-    private void rememberFunctionCall(ResponseStreamEvent event, Map<String, ResponseFunctionToolCall> functionCallsByItemId) {
+    private void rememberFunctionCall(ResponseStreamEvent event,
+                                      Map<String, ResponseFunctionToolCall> functionCallsByItemId) {
         event.outputItemAdded().ifPresent(outputItem -> rememberFunctionCall(outputItem.item(), functionCallsByItemId));
         event.outputItemDone().ifPresent(outputItem -> rememberFunctionCall(outputItem.item(), functionCallsByItemId));
     }
@@ -561,8 +569,8 @@ public class OpenAiResponsesAgentScopeModel extends ChatModelBase {
         }
         try {
             return OBJECT_MAPPER.readValue(arguments, MAP_TYPE_REFERENCE);
-        } catch (Exception ignored) {
-            return Map.of("raw", arguments);
+        } catch (Exception invalid) {
+            throw new IllegalArgumentException("模型返回的工具参数不是有效的 JSON 对象", invalid);
         }
     }
 

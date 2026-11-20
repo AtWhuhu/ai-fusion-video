@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>简体中文</strong> | <a href="README_EN.md">English</a>
+  <strong>简体中文</strong> | <a href="README_EN.md" target="_blank" rel="noopener noreferrer">English</a>
 </p>
 
 <h1 align="center">融光</h1>
@@ -11,8 +11,8 @@
 <p align="center">Agent 驱动的视频创作平台</p>
 
 <p align="center">
-  <a href="https://github.com/Stonewuu/ai-fusion-video/releases"><img src="https://img.shields.io/github/v/release/Stonewuu/ai-fusion-video?display_name=tag" alt="GitHub Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Stonewuu/ai-fusion-video" alt="MIT License" /></a>
+  <a href="https://github.com/Stonewuu/ai-fusion-video/releases" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/v/release/Stonewuu/ai-fusion-video?display_name=tag" alt="GitHub Release" /></a>
+  <a href="LICENSE" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/github/license/Stonewuu/ai-fusion-video" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/Java-21-ED8B00" alt="Java 21" />
   <img src="https://img.shields.io/badge/Next.js-16-000000" alt="Next.js 16" />
 </p>
@@ -21,13 +21,82 @@
   <img src="https://stonewuu.github.io/Stonewuu/star-history/Stonewuu/ai-fusion-video.svg" alt="GitHub Star History" width="920" />
 </p>
 
-<table align="center" style="margin: 0 auto; display: table;">
-  <tr>
-    <td align="center">
-      <b>想让你的品牌出现在这里？<a href="mailto:me@stonewu.com">联系我</a></b>
-    </td>
-  </tr>
+## 🤝 赞助商
+
+感谢以下赞助商对融光的支持！
+
+<table width="100%">
+  <tbody>
+    <!-- 每位赞助商占一行：横幅跨两列，方形 Logo 左图右文；联系入口统一保留在表格之后。 -->
+    <tr>
+      <td colspan="2" valign="top">
+        <p align="center">
+          <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">
+            <img src="assets/sponsors/infistar-banner.png" alt="Infistar.cc 无限星河：一站式全球大模型 API 服务平台" width="920" />
+          </a>
+        </p>
+        <p><strong>感谢 <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">Infistar.cc 无限星河</a> 赞助本项目！ | 全模型 API · 为 AI 视频创作注入强劲算力</strong></p>
+        <p>
+          🔥 <strong>稳定低价</strong>：低至官方 <strong>0.1 折起</strong>，倍率公开透明；多节点冗余智能路由，彻底抗 429 频控熔断；<br />
+          🎬 <strong>全模型一站通</strong>：单 Key 汇聚 Claude、GPT、Gemini、DeepSeek 等顶尖模型，轻松搞定剧本拆解与分镜推导；<br />
+          🤖 <strong>Agent 创作赋能</strong>：高并发低延迟，深度支撑“融光助手”及多步骤 Agent 任务的长时挂机与连续生成；<br />
+          🎁 <strong>专属开箱福利</strong>：通过 <a href="https://www.infistar.cc/register?aff=KRJVKLFP&amp;ref_source=link" target="_blank" rel="noopener noreferrer">专属推广链接</a> 注册即赠 <strong>$5 测试额度</strong> 与<strong>首充专享特惠</strong>！
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/ll2-logo.jpg" alt="LL2 Logo" width="144" height="144" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>感谢 <a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer">LL2</a> 赞助本项目！｜自营算力底座 · 官方直签批价。</strong></p>
+        <p>
+          MiniMax-H3 <strong>0.05 元/秒</strong>（自部署 768P 满血）；
+          deepseek-v4.1-flash 官方 <strong>4 折</strong>；<br />
+          Seedance 系列 <strong>7 折起</strong>；
+          超分 <strong>0.018 元/秒</strong>；
+          Vega 系列 <strong>6 折起</strong>
+        </p>
+        <p><a href="https://hub.ll2.cn?p=mj5f" target="_blank" rel="noopener noreferrer"><strong>注册 LL2 →</strong></a></p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/metasota-logo.png" alt="秘塔科技 Logo" width="160" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>感谢 <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer">秘塔</a> 赞助本项目！｜MiniMax H3 视频生成 API</strong></p>
+        <p>
+          秘塔科技提供高性价比的 MiniMax H3 视频生成服务：<br />
+          480P 仅 <strong>0.06 元/秒</strong>，768P 仅 <strong>0.09 元/秒</strong>，
+          1080P（非超分）仅 <strong>0.14 元/秒</strong>，2K 仅 <strong>0.15 元/秒</strong>。
+        </p>
+        <p>支持生成 30 秒视频，支持多参考和音画同步。API 兼容 OpenAI 协议，支持 ComfyUI，无需自行部署 GPU。</p>
+        <p>🎁 通过 <a href="https://metaso.cn/minimax-h3/?s=fusioi" target="_blank" rel="noopener noreferrer"><strong>融光专属链接</strong></a> 注册，即可领取赠送额度及专属优惠。</p>
+      </td>
+    </tr>
+    <tr>
+      <td width="180" align="center" valign="middle">
+        <a href="https://youkou.cc/" target="_blank" rel="noopener noreferrer">
+          <img src="assets/sponsors/erchun-logo.jpg" alt="贰春科技 Logo" width="144" height="144" />
+        </a>
+      </td>
+      <td valign="top">
+        <p><strong>感谢 <a href="https://youkou.cc/" target="_blank" rel="noopener noreferrer">贰春 AIGC</a> 赞助本项目 | 多渠道多模型提供商</strong></p>
+        <p>图片 <strong>1 分钱/张起</strong> · 视频模型 H3 低至 <strong>3 分钱/秒起</strong>，Seedance 官方和特价都有，最低低至 <strong>1 折起</strong></p>
+        <p>百款模型 · 几十个渠道 · 自由选</p>
+      </td>
+    </tr>
+  </tbody>
 </table>
+
+<p align="center">
+  <strong>想让你的品牌出现在这里？ <a href="mailto:me@stonewu.com" target="_blank" rel="noopener noreferrer">联系我</a></strong>
+</p>
 
 <table align="center">
   <thead>
@@ -68,7 +137,31 @@
 
 本仓库包含 Java 后端、Next.js 前端和 Docker Compose 部署配置。首次启动后，按照初始化向导创建管理员账号即可开始使用。
 
+## 产品视频
+
+https://github.com/user-attachments/assets/acd181a0-541c-4163-a000-fa9ed72a5106
+
 ## 功能
+
+### 无限画布
+
+在同一张画布上组织剧本、分镜、角色和素材，连接生成、合成和导出步骤。参考图和生成的视频可以直接在节点里预览，选好镜头后可以合成并导出成片。
+
+节点多时，点击「自动整理」即可重新排布。常用流程可以保存为模板，画布也可以分享给成员共同编辑、评论和保存版本。
+
+### 融光助手
+
+在项目或画布中打开融光助手，引用当前剧本、分镜、资产或选中的节点，请助手改写内容、整理分镜或生成素材。按所选模型支持的输入类型，还可以附上图片、视频、音频或文件。回复会逐段显示，刷新页面或返回会话后可以接着看。
+
+你可以在「智能体配置」中设置常用指令、可用工具和默认技能（Skill）。助手会按会话中的授权方式使用工具，也可调用通过 MCP 接入的外部工具，或将分项任务交给子智能体。执行进度会显示在对话里。
+
+### ComfyUI 工作流
+
+在「系统设置 → AI 配置」连接 ComfyUI 服务，导入从 ComfyUI 导出的 API 格式 JSON，指定提示词、参考素材和输出结果对应的工作流节点。完成校验和试运行后，发布工作流并将它关联到图片或视频模型。
+
+创作时，在生成工具或画布中选择这个模型即可使用工作流。页面会提示所需素材和参考图数量，方便一次准备好输入。
+
+### 其他功能
 
 | 模块 | 当前能力 |
 | --- | --- |
@@ -77,15 +170,8 @@
 | 分镜制作 | 从剧本整理分镜，编辑镜头内容、参考素材和生成结果 |
 | 图片与视频 | 根据文本或参考素材生成图片与视频，并持续跟踪后台任务进度 |
 | 素材管理 | 统一管理项目素材和可复用的图片、视频资源 |
-| Agent 工作区 | 支持流式对话、多模态上下文、工具权限、Skill、MCP 与子 Agent |
 | 模型与存储 | 集中配置文本、图片和视频模型，并选择本地或对象存储 |
 | 系统管理 | 提供初始化向导、用户与角色管理、密码重置和版本检查 |
-
-### Agent 与工具
-
-内置 Agent 工作区可以结合项目内容持续对话，接收图片、视频、音频和文件等多模态输入，并在界面中展示推理过程、工具调用和任务状态。
-
-Agent 运行基于 AgentScope，支持 Skill、MCP 和子 Agent。会话与运行状态会持久化保存，模型能力和工具权限可按会话配置，适合处理需要多步骤协作的创作任务。
 
 ### 模型与生成协议
 
@@ -168,6 +254,8 @@ BACKEND_PORT=18080
 
 `PUBLIC_API_URL` 应填写后端根地址，末尾不要添加 `/api`。后端默认全局允许跨域；生产环境建议像示例一样将 `CORS_ALLOWED_ORIGIN_PATTERNS` 限制为实际前端来源，多个来源使用英文逗号分隔。
 
+部署时需要区分三类地址：Nginx 的 `http://backend:18080` 供容器之间通信；`PUBLIC_API_URL` 供浏览器请求后端，统一入口模式应留空；系统设置中的“后端资源地址”`resource_base_url` 存储在数据库中，用于后端生成图片、视频等资源的完整访问地址。云端模型需要 URL 输入时，该资源地址必须能从公网访问，不能使用 Compose 服务名或仅宿主机可访问的地址。
+
 使用预构建镜像：
 
 ```bash
@@ -241,7 +329,7 @@ Docker Compose 会自动读取仓库根目录的 `.env`。不同启动方式使�
 | 本地构建统一入口 | `docker-compose.build.yml` | 与默认统一入口相同，仅镜像改为本地构建 |
 | 前后端独立部署 | 基础 Compose 文件 + `docker-compose.separated.yml` | 必须填写 `PUBLIC_API_URL`；生产环境建议填写 `CORS_ALLOWED_ORIGIN_PATTERNS`；可按需修改 `FRONTEND_PORT`、`BACKEND_PORT`；`APP_PORT` 不生效 |
 
-公网部署前必须修改 MySQL root 密码和 Redis 密码；如启用 MySQL 应用账号，也必须设置独立密码。`FRONTEND_PORT`、`BACKEND_PORT` 和 `PUBLIC_API_URL` 仅在组合使用 `docker-compose.separated.yml` 时生效；`CORS_ALLOWED_ORIGIN_PATTERNS` 对所有部署方式生效。
+公网部署前必须修改 MySQL root 密码和 Redis 密码；如启用 MySQL 应用账号，也必须设置独立密码。`FRONTEND_PORT`、`BACKEND_PORT` 仅在组合使用 `docker-compose.separated.yml` 时生效；`PUBLIC_API_URL` 和 `CORS_ALLOWED_ORIGIN_PATTERNS` 对所有部署方式生效，统一入口部署的 `PUBLIC_API_URL` 应留空。
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
@@ -362,5 +450,5 @@ Flyway 迁移脚本位于 `ai-fusion-video/src/main/resources/db/migration/`。�
 [MIT License](LICENSE)
 
 <p align="center">
-  <sub>Built by <a href="https://github.com/Stonewuu">Stonewu</a></sub>
+  <sub>Built by <a href="https://github.com/Stonewuu" target="_blank" rel="noopener noreferrer">Stonewu</a></sub>
 </p>

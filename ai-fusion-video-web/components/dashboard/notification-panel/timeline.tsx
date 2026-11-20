@@ -1,5 +1,10 @@
 "use client";
 
+import { ModelRetryNotice } from "@/components/dashboard/shared/model-retry-notice";
+import { formatSubAgentResult } from "@/lib/ai/sub-agent-result";
+import { ManagedMediaLink } from "@/components/media/managed-media-link";
+
+
 import {
   memo,
   useEffect,
@@ -133,7 +138,7 @@ function TaskMediaLinks({ mediaLinks }: { mediaLinks: TaskMediaLinkInfo[] }) {
               <p className="text-xs font-medium text-muted-foreground">
                 {mediaLink.label}
               </p>
-              <a
+              <ManagedMediaLink
                 href={mediaLink.resolvedUrl}
                 target="_blank"
                 rel="noreferrer"
@@ -141,9 +146,9 @@ function TaskMediaLinks({ mediaLinks }: { mediaLinks: TaskMediaLinkInfo[] }) {
                 title={mediaLink.resolvedUrl}
               >
                 {mediaLink.resolvedUrl}
-              </a>
+              </ManagedMediaLink>
             </div>
-            <a
+            <ManagedMediaLink
               href={mediaLink.resolvedUrl}
               target="_blank"
               rel="noreferrer"
@@ -152,7 +157,7 @@ function TaskMediaLinks({ mediaLinks }: { mediaLinks: TaskMediaLinkInfo[] }) {
             >
               <Download className="h-3.5 w-3.5" />
               下载视频
-            </a>
+            </ManagedMediaLink>
           </div>
         </div>
       ))}
@@ -161,6 +166,7 @@ function TaskMediaLinks({ mediaLinks }: { mediaLinks: TaskMediaLinkInfo[] }) {
 }
 
 export interface TimelineToolConfirmation {
+  reviews?: Readonly<Record<string, import("@/lib/ai/tool-approval-review").ToolApprovalReview | undefined>>;
   toolCallIds: string[];
   parentToolCallId?: string;
   decisions: Readonly<Record<string, boolean>>;
@@ -189,7 +195,9 @@ const SubTimelineEntry = memo(function SubTimelineEntry({
 }) {
   let content;
 
-  if (child.type === "reasoning") {
+  if (child.type === "retry") {
+    content = <ModelRetryNotice text={child.text} />;
+  } else if (child.type === "reasoning") {
     content = (
       <ReasoningThink
         content={child.text}
@@ -247,12 +255,9 @@ const SubAgentCard = memo(function SubAgentCard({
       ): child is Extract<SubTimelineItem, { type: "content" }> =>
         child.type === "content"
     );
-  const renderedResult =
-    !isRunning && item.result
-      ? lastContentChild?.text.trim() === item.result.trim()
-        ? null
-        : item.result
-      : null;
+  const formattedResult = item.result ? formatSubAgentResult(item.result) : null;
+  const renderedResult = !isRunning && formattedResult && lastContentChild?.text.trim() !== formattedResult.trim()
+    ? formattedResult : null;
   const hasResult = !!renderedResult;
   const hasContent = children.length > 0 || hasResult;
   const [innerScrollElement, setInnerScrollElement] = useScrollElement();
@@ -383,6 +388,7 @@ const SubAgentCard = memo(function SubAgentCard({
                         result: child.result,
                       }]}
                       approval={{
+                        review: toolConfirmation.reviews?.[child.id],
                         decision: confirmationDecision(toolConfirmation, child.id),
                         submitting: toolConfirmation.submitting,
                         showActions: toolConfirmation.showActions,
@@ -435,7 +441,9 @@ const TimelineEntry = memo(function TimelineEntry({
 }) {
   let content;
 
-  if (item.type === "reasoning") {
+  if (item.type === "retry") {
+    content = <ModelRetryNotice text={item.text} />;
+  } else if (item.type === "reasoning") {
     content = (
       <ReasoningThink
         content={item.text}
@@ -563,6 +571,7 @@ function MessageTimelineRowContent({
           result: row.item.result,
         }]}
         approval={{
+          review: toolConfirmation.reviews?.[row.item.id],
           decision: confirmationDecision(toolConfirmation, row.item.id),
           submitting: toolConfirmation.submitting,
           showActions: toolConfirmation.showActions,

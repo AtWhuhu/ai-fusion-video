@@ -283,7 +283,7 @@ export function useStoryboardWorkspace(projectId: number) {
     storyboardEpisodeId: number,
     scriptEpisodeId: number
   ) => {
-    const updated = await storyboardApi.bindScriptEpisode(storyboardEpisodeId, scriptEpisodeId);
+    const updated = await storyboardApi.bindScriptEpisode(storyboardEpisodeId, (await storyboardApi.getEpisode(storyboardEpisodeId)).version, scriptEpisodeId);
     await refreshStoryboardData();
     return updated;
   }, [refreshStoryboardData]);
@@ -471,11 +471,16 @@ export function useStoryboardWorkspace(projectId: number) {
     if (!storyboard) return;
     const group = sceneGroups.find((g) => g.scene.id === sceneId);
     const currentItems = group?.items || [];
+    const sceneAssetItemId = currentItems.find((i) => i.sceneAssetItemId != null)?.sceneAssetItemId;
+    if (!group || sceneAssetItemId == null) {
+      toastApiError(new Error("请先为该场次绑定场景资产"), "添加镜头失败");
+      return;
+    }
     try {
       const newItem = await storyboardApi.createItem({
-        storyboardId: storyboard.id,
         storyboardSceneId: sceneId,
-        storyboardEpisodeId: episodeId,
+        parentVersion: group.scene.version,
+        sceneAssetItemId,
         sortOrder: currentItems.length,
         shotNumber: String(currentItems.length + 1),
       });
@@ -496,7 +501,7 @@ export function useStoryboardWorkspace(projectId: number) {
   const handleDeleteEpisode = async (episodeId: number) => {
     const ok = await confirm({ title: "删除分镜集", description: "确定要删除该分镜集吗？相关的分镜内容也将被一并删除，此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return false;
     try {
-      await storyboardApi.deleteEpisode(episodeId);
+      await storyboardApi.deleteEpisode(episodeId, (await storyboardApi.getEpisode(episodeId)).version);
       if (
         sidebarSelection.episodeId === episodeId
       ) {
@@ -514,7 +519,7 @@ export function useStoryboardWorkspace(projectId: number) {
   const handleDeleteScene = async (sceneId: number, episodeId: number) => {
     const ok = await confirm({ title: "删除分镜场次", description: "确定要删除该分镜场次吗？场次内的所有镜头将被一并删除。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return false;
     try {
-      await storyboardApi.deleteScene(sceneId);
+      await storyboardApi.deleteScene(sceneId, (await storyboardApi.getScene(sceneId)).version);
       if (sidebarSelection.sceneId === sceneId) {
         setSidebarSelection({ type: "episode", episodeId });
       }
@@ -529,11 +534,8 @@ export function useStoryboardWorkspace(projectId: number) {
 
   const handleReorderScenes = async (episodeId: number, sortedScenes: import("@/lib/api/storyboard").StoryboardScene[]) => {
     try {
-      await Promise.all(
-        sortedScenes.map((scene, idx) =>
-          storyboardApi.updateScene({ id: scene.id, sortOrder: idx })
-        )
-      );
+      const episode = await storyboardApi.getEpisode(episodeId);
+      await storyboardApi.reorderScenes(episodeId, episode.version, sortedScenes.map((scene) => scene.id));
       if (
         sidebarSelection.type === "all" ||
         sidebarSelection.episodeId === episodeId
@@ -549,7 +551,7 @@ export function useStoryboardWorkspace(projectId: number) {
   const handleDeleteItem = async (itemId: number) => {
     const ok = await confirm({ title: "删除镜头", description: "确定要删除该镜头吗？此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
     try {
-      await storyboardApi.deleteItem(itemId);
+      await storyboardApi.deleteItem(itemId, (await storyboardApi.getItem(itemId)).version);
       setSceneGroups((prev) =>
         prev.map((g) => ({
           ...g,
@@ -580,6 +582,7 @@ export function useStoryboardWorkspace(projectId: number) {
             )
           : await storyboardApi.updateItem({
               id: itemId,
+              version: (await storyboardApi.getItem(itemId)).version,
               [field]: field === "duration" ? (value ? Number(value) : null) : value,
             });
       setSceneGroups((prev) =>
@@ -633,6 +636,7 @@ export function useStoryboardWorkspace(projectId: number) {
     async (itemId: number, frameType: StoryboardFrameType, imageUrl: string | null) => {
       try {
         const updated = await storyboardApi.updateFrame(itemId, {
+          version: (await storyboardApi.getItem(itemId)).version,
           frameType,
           imageUrl,
           prompt: null,
@@ -691,9 +695,8 @@ export function useStoryboardWorkspace(projectId: number) {
     );
     // 后台批量更新 sortOrder
     try {
-      await storyboardApi.batchUpdateItemSort(
-        reorderedItems.map((item) => item.id)
-      );
+      const scene = await storyboardApi.getScene(sceneId);
+      await storyboardApi.reorderItems(sceneId, scene.version, reorderedItems.map((item) => item.id));
     } catch (err) {
       console.error("更新排序失败:", err);
       toastApiError(err, "更新排序失败");
@@ -724,7 +727,7 @@ export function useStoryboardWorkspace(projectId: number) {
     );
     setNotificationOpen(true);
     try {
-      const taskId = await storyboardApi.composeEpisodeVideo(currentEpisodeId);
+      const taskId = await storyboardApi.composeEpisodeVideo(currentEpisodeId, currentEpisode.version, crypto.randomUUID(), true);
       setSubmittingComposeEpisodeIds((prev) =>
         prev.filter((id) => id !== currentEpisodeId)
       );

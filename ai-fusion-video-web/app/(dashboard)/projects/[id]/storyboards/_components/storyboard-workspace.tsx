@@ -179,17 +179,18 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
         onRefresh={handleManualRefreshStoryboard}
         isRefreshing={isRefreshingStoryboard}
         storyboardId={storyboard.id}
+        storyboardVersion={storyboard.version}
         selection={sidebarSelection}
         activeSceneId={activeSceneId}
         collapsed={isSidebarCollapsed}
         onSelect={setSidebarSelection}
         onCollapsedChange={handleSetSidebarCollapsed}
         onInitialLoad={handleSidebarInitialLoad}
-        onDeleteEpisode={handleDeleteEpisode}
-        onDeleteScene={handleDeleteScene}
-        onReorderScenes={handleReorderScenes}
+        onDeleteEpisode={(episode) => handleDeleteEpisode(episode.id)}
+        onDeleteScene={(scene) => handleDeleteScene(scene.id, scene.episodeId)}
+        onReorderScenes={(episode, scenes) => handleReorderScenes(episode.id, scenes)}
         scriptEpisodes={scriptEpisodes}
-        onBindScriptEpisode={handleBindScriptEpisode}
+        onBindScriptEpisode={(episode, scriptEpisodeId) => handleBindScriptEpisode(episode.id, scriptEpisodeId)}
         onGenerateEpisodeStoryboard={handleGenerateEpisodeStoryboard}
       />
   
@@ -253,15 +254,16 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
          onRefresh={handleManualRefreshStoryboard}
         isRefreshing={isRefreshingStoryboard}
         storyboardId={storyboard.id}
+        storyboardVersion={storyboard.version}
                   selection={sidebarSelection}
                   activeSceneId={activeSceneId}
                   onSelect={setSidebarSelection}
                   onInitialLoad={handleSidebarInitialLoad}
-                  onDeleteEpisode={handleDeleteEpisode}
-                  onDeleteScene={handleDeleteScene}
-                  onReorderScenes={handleReorderScenes}
+                  onDeleteEpisode={(episode) => handleDeleteEpisode(episode.id)}
+                  onDeleteScene={(scene) => handleDeleteScene(scene.id, scene.episodeId)}
+                  onReorderScenes={(episode, scenes) => handleReorderScenes(episode.id, scenes)}
                   scriptEpisodes={scriptEpisodes}
-                  onBindScriptEpisode={handleBindScriptEpisode}
+                  onBindScriptEpisode={(episode, scriptEpisodeId) => handleBindScriptEpisode(episode.id, scriptEpisodeId)}
                   onGenerateEpisodeStoryboard={handleGenerateEpisodeStoryboard}
                 />
               </SheetContent>
@@ -379,6 +381,7 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
           if (!editingItem) return;
           try {
             const updated = await storyboardApi.updateItemAssets(editingItem.id, {
+              version: editingItem.version,
               characterIds,
               sceneAssetItemId,
               propIds,

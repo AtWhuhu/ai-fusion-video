@@ -11,10 +11,17 @@ import type { StoryboardItem } from "@/lib/api/storyboard";
 export const CAMERA_ANCHOR_AUTO = "__auto__";
 
 /** 从 custom_data 读取导演逐镜指定的机位锚点编号 */
-export function readCameraAnchorId(customData: string | null): string | null {
+type CustomData = Record<string, unknown> | string | null;
+
+function parseCustomData(customData: CustomData): Record<string, unknown> | null {
   if (!customData) return null;
+  if (typeof customData !== "string") return customData;
+  return JSON.parse(customData) as Record<string, unknown>;
+}
+
+export function readCameraAnchorId(customData: CustomData): string | null {
   try {
-    const parsed = JSON.parse(customData) as { cameraAnchorId?: unknown };
+    const parsed = parseCustomData(customData);
     const value = parsed?.cameraAnchorId;
     return typeof value === "string" && value.trim() ? value.trim() : null;
   } catch {
@@ -23,10 +30,9 @@ export function readCameraAnchorId(customData: string | null): string | null {
 }
 
 /** 从 custom_data 读取本镜的 3D 布景快照 URL（3D 导演台导出，供视频生成参考） */
-export function readBlockingSnapshotUrl(customData: string | null): string | null {
-  if (!customData) return null;
+export function readBlockingSnapshotUrl(customData: CustomData): string | null {
   try {
-    const parsed = JSON.parse(customData) as { blocking3dImageUrl?: unknown };
+    const parsed = parseCustomData(customData);
     const value = parsed?.blocking3dImageUrl;
     return typeof value === "string" && value.trim() ? value.trim() : null;
   } catch {

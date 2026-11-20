@@ -116,17 +116,18 @@ export function StoryboardSceneBlockingDialog({
       description: `将通读「${asset.name}」在全片中出现的所有镜头，推断出场地结构锚点、可用机位与角色站位。推断结果是整表替换，当前已配置的锚点会被覆盖。确定继续吗？`,
       confirmText: "开始推断",
     });
-    if (!ok) return;
+    if (!ok || asset.projectId == null) return;
+    const projectId = asset.projectId;
     const { addPipeline, setNotificationOpen } = usePipelineStore.getState();
     addPipeline({
       label: `推断场景锚点 · ${asset.name}`,
-      projectId: asset.projectId,
+      projectId,
       request: {
         agentType: "scene_blocking_infer",
         toolExecutionMode: "FULL_ACCESS",
         category: "pipeline",
         title: `推断场景锚点 · ${asset.name}`,
-        projectId: asset.projectId,
+        projectId,
         context: { sceneAssetId: asset.id },
       },
       onComplete: () => onSaved?.(),
@@ -141,6 +142,7 @@ export function StoryboardSceneBlockingDialog({
     try {
       await assetApi.update({
         id: asset.id,
+        version: asset.version,
         properties: {
           ...parseAssetProperties(asset.properties),
           blocking,

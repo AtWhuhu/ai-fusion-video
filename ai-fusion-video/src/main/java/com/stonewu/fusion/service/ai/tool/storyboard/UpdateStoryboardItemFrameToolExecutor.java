@@ -1,16 +1,11 @@
 package com.stonewu.fusion.service.ai.tool.storyboard;
 
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
-import cn.hutool.json.JSONObject;
-import com.stonewu.fusion.entity.storyboard.StoryboardItem;
 import com.stonewu.fusion.service.ai.ToolExecutionContext;
 import com.stonewu.fusion.service.ai.ToolExecutor;
-import com.stonewu.fusion.service.ai.tool.ToolResourceAccessGuard;
-import com.stonewu.fusion.service.storyboard.StoryboardService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
 
 /**
  * 更新分镜条目首尾帧工具（update_storyboard_item_frame）。
@@ -21,9 +16,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 @Slf4j
 public class UpdateStoryboardItemFrameToolExecutor implements ToolExecutor {
+    private final StoryboardToolCommands tools;
 
-    private final StoryboardService storyboardService;
-    private final ToolResourceAccessGuard accessGuard;
 
     /**
      * 获取工具名称。
@@ -53,8 +47,9 @@ public class UpdateStoryboardItemFrameToolExecutor implements ToolExecutor {
     @Override
     public String getToolDescription() {
         return """
-                将生成的图片URL保存到分镜条目的首帧或尾帧字段中。
-                调用 generate_image 获取图片URL后，使用此工具将图片关联到对应的分镜镜头。
+                保存分镜镜头的首帧或尾帧图片及最终生图提示词，写入需要 expectedVersion。
+                生图成功后传入 imageUrl 和实际使用的 framePrompt。
+                仅优化提示词时只传 framePrompt，省略 imageUrl，保留已有图片。
                 """;
     }
 
@@ -75,19 +70,36 @@ public class UpdateStoryboardItemFrameToolExecutor implements ToolExecutor {
                         },
                         "frameType": {
                             "type": "string",
-                            "enum": ["first", "last"],
+                            "enum": [
+                                "first",
+                                "last"
+                            ],
                             "description": "帧类型：first-首帧，last-尾帧"
                         },
                         "imageUrl": {
                             "type": "string",
-                            "description": "generate_image 返回的图片URL"
+                            "description": "生成成功的图片URL；仅修订提示词时省略，不传 null 或空字符串"
                         },
                         "framePrompt": {
                             "type": "string",
-                            "description": "生成首尾帧时使用的提示词"
+                            "description": "实际用于生成的最终提示词，或仅修订模式下供下次生成使用的提示词"
+                        },
+                        "expectedVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "调用方实际读取的对象版本；冲突时不得换用新版本强制覆盖"
                         }
                     },
-                    "required": ["storyboardItemId", "frameType", "imageUrl"]
+                    "required": [
+                        "storyboardItemId",
+                        "frameType",
+                        "expectedVersion"
+                    ],
+                    "anyOf": [
+                        { "required": ["imageUrl"] },
+                        { "required": ["framePrompt"] }
+                    ],
+                    "additionalProperties": false
                 }
                 """;
     }
@@ -111,51 +123,6 @@ public class UpdateStoryboardItemFrameToolExecutor implements ToolExecutor {
      */
     @Override
     public String execute(String toolInput, ToolExecutionContext context) {
-        try {
-            JSONObject params = JSONUtil.parseObj(toolInput);
-            Long itemId = params.getLong("storyboardItemId");
-            String frameType = params.getStr("frameType");
-            String imageUrl = params.getStr("imageUrl");
-            String framePrompt = params.getStr("framePrompt");
-
-            if (itemId == null) {
-                return errorResult("缺少 storyboardItemId");
-            }
-            if (StrUtil.isBlank(frameType)) {
-                return errorResult("缺少 frameType");
-            }
-            if (StrUtil.isBlank(imageUrl)) {
-                return errorResult("缺少 imageUrl");
-            }
-
-            accessGuard.requireStoryboardItem(itemId, context.getUserId());
-            StoryboardItem updated = storyboardService.updateItemFrame(itemId, frameType, imageUrl, framePrompt);
-
-            log.info("[update_storyboard_item_frame] 已更新分镜首尾帧: itemId={}, frameType={}, imageUrl={}",
-                    itemId, frameType, imageUrl);
-
-            return JSONUtil.createObj()
-                    .set("status", "success")
-                    .set("storyboardItemId", itemId)
-                    .set("frameType", storyboardService.normalizeFrameType(frameType))
-                    .set("imageUrl", imageUrl)
-                    .set("firstFrameImageUrl", updated.getFirstFrameImageUrl())
-                    .set("lastFrameImageUrl", updated.getLastFrameImageUrl())
-                    .set("message", "分镜首尾帧已保存")
-                    .toString();
-        } catch (Exception e) {
-            log.error("[update_storyboard_item_frame] 更新分镜首尾帧失败", e);
-            return errorResult("更新失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 构建错误结果。
-     *
-     * @param message 错误消息
-     * @return 错误结果 JSON
-     */
-    private String errorResult(String message) {
-        return JSONUtil.createObj().set("status", "error").set("message", message).toString();
+        return tools.execute(getToolName(), toolInput, context);
     }
 }

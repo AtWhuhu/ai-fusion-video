@@ -4,21 +4,22 @@ import { useRef, useState, type ClipboardEvent, type DragEvent } from "react";
 import { toast } from "sonner";
 import {
   CircleAlert,
-  FileVideo2,
   ImagePlus,
   Loader2,
   Music2,
   SlidersHorizontal,
   Sparkles,
-  X,
 } from "lucide-react";
 import type { AiModel } from "@/lib/api/ai-model";
 import type { GenerationCapabilities } from "@/lib/generation-capabilities";
-import { uploadFile } from "@/lib/api/storage";
+import { videoInputState, videoPromptReady } from "@/lib/video-model-rules";
+import { uploadGenerationReference } from "./generation-reference-upload";
 import { getApiErrorMessage } from "@/lib/api/api-error";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { SafeImage } from "@/components/ui/safe-image";
+import { SafeImage } from "@/components/media/managed-image";
+import { MediaReferenceActions } from "@/components/media/media-reference-actions";
+import { MediaThumbnail } from "@/components/media/media-thumbnail";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type {
@@ -35,11 +36,11 @@ import { GenerationStoragePickerDialog } from "./generation-storage-picker-dialo
 
 const MEDIA_UPLOAD_CONFIG: Record<
   SimpleAttachmentMediaType,
-  { accept: string; folder: string }
+  { accept: string }
 > = {
-  image: { accept: "image/*", folder: "generation-references" },
-  video: { accept: "video/*", folder: "generation-video-references" },
-  audio: { accept: "audio/*", folder: "generation-audio-references" },
+  image: { accept: "image/*" },
+  video: { accept: "video/*" },
+  audio: { accept: "audio/*" },
 };
 
 interface GenerationSimpleComposerProps {
@@ -55,10 +56,11 @@ interface GenerationSimpleComposerProps {
   attachmentCapacity: number;
   minAttachments: number;
   submitting: boolean;
+  submitDisabled?: boolean;
   onModelChange: (modelId: number) => void;
   onFormChange: (patch: Partial<GenerationFormState>) => void;
   onAddAttachments: (urls: string[], kind?: SimpleAttachmentKind) => void;
-  onRemoveAttachment: (url: string) => void;
+  onRemoveAttachment: (attachment: SimpleAttachment) => void;
   onSubmit: () => void;
   onAdvanced: () => void;
   attachmentDisabledReason?: string;
@@ -77,6 +79,7 @@ export function GenerationSimpleComposer({
   attachmentCapacity,
   minAttachments,
   submitting,
+  submitDisabled = false,
   onModelChange,
   onFormChange,
   onAddAttachments,
@@ -86,7 +89,9 @@ export function GenerationSimpleComposer({
   attachmentDisabledReason = "",
 }: GenerationSimpleComposerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const selectedUploadOptionRef = useRef<SimpleAttachmentUploadOption | null>(null);
+  const selectedUploadOptionRef = useRef<SimpleAttachmentUploadOption | null>(
+    null,
+  );
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
@@ -104,12 +109,22 @@ export function GenerationSimpleComposer({
       !option.disabledReason,
   );
   const missingRequiredAttachments = imageAttachmentCount < minAttachments;
+  const promptLimit = capabilities?.videoRules
+    ? capabilities.videoRules.promptMaxLength
+    : 5000;
   const canSubmit = Boolean(
     modelId &&
-    prompt.trim() &&
-    !missingRequiredAttachments &&
-    !submitting &&
-    !uploading,
+      (mode === "video"
+        ? videoPromptReady(
+            prompt,
+            capabilities?.videoRules,
+            videoInputState(form),
+          )
+        : prompt.trim()) &&
+      !missingRequiredAttachments &&
+      !submitting &&
+      !submitDisabled &&
+      !uploading,
   );
 
   const uploadFiles = async (
@@ -117,21 +132,21 @@ export function GenerationSimpleComposer({
     option?: SimpleAttachmentUploadOption,
   ) => {
     const mediaType = option?.mediaType || "image";
-    const config = MEDIA_UPLOAD_CONFIG[mediaType];
-    const remaining = option?.remaining ?? Math.max(
-      0,
-      maxImageAttachments - imageAttachmentCount,
-    );
+    const remaining =
+      option?.remaining ??
+      Math.max(0, maxImageAttachments - imageAttachmentCount);
     const selected = files
       .filter((file) => file.type.startsWith(`${mediaType}/`))
       .slice(0, remaining);
-    if (!selected.length) return;
+    if (!selected.length) {
+      return;
+    }
 
     setUploading(true);
     setError("");
     try {
       const urls = await Promise.all(
-        selected.map((file) => uploadFile(file, config.folder)),
+        selected.map((file) => uploadGenerationReference(file, mediaType)),
       );
       onAddAttachments(urls, option?.kind);
     } catch (error) {
@@ -140,14 +155,18 @@ export function GenerationSimpleComposer({
       toast.error(message);
     } finally {
       setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
       selectedUploadOptionRef.current = null;
     }
   };
 
   const handleSelectUpload = (option: SimpleAttachmentUploadOption) => {
     const input = inputRef.current;
-    if (!input) return;
+    if (!input) {
+      return;
+    }
     const config = MEDIA_UPLOAD_CONFIG[option.mediaType];
     selectedUploadOptionRef.current = option;
     input.accept = config.accept;
@@ -160,7 +179,9 @@ export function GenerationSimpleComposer({
       .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
       .map((item) => item.getAsFile())
       .filter((file): file is File => Boolean(file));
-    if (!imageFiles.length || !canPasteImages) return;
+    if (!imageFiles.length || !canPasteImages) {
+      return;
+    }
     event.preventDefault();
     void uploadFiles(imageFiles);
   };
@@ -168,7 +189,9 @@ export function GenerationSimpleComposer({
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDragging(false);
-    if (!canPasteImages) return;
+    if (!canPasteImages) {
+      return;
+    }
     void uploadFiles(Array.from(event.dataTransfer.files));
   };
 
@@ -177,7 +200,9 @@ export function GenerationSimpleComposer({
       <div
         onDragEnter={(event) => {
           event.preventDefault();
-          if (canPasteImages) setDragging(true);
+          if (canPasteImages) {
+            setDragging(true);
+          }
         }}
         onDragOver={(event) => event.preventDefault()}
         onDragLeave={() => setDragging(false)}
@@ -222,53 +247,53 @@ export function GenerationSimpleComposer({
                     fallbackType="image"
                   />
                 ) : attachment.mediaType === "video" ? (
-                  <FileVideo2 className="size-6 text-cyan-500/70" />
+                  <MediaThumbnail source={attachment.url} kind="video" alt={attachment.label} fit="cover" compact interactive={false} />
                 ) : (
                   <Music2 className="size-6 text-violet-500/70" />
                 )}
                 <span className="absolute inset-x-1 bottom-1 truncate rounded-md bg-black/55 px-1 py-0.5 text-center text-[9px] text-white backdrop-blur-sm">
                   {attachment.label}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveAttachment(attachment.url)}
-                  title={`移除${attachment.label}`}
-                  aria-label={`移除${attachment.label}`}
-                  className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                >
-                  <X className="h-3 w-3" />
-                </button>
+                <MediaReferenceActions label={attachment.label}
+                  onRemove={() => onRemoveAttachment(attachment)} />
               </div>
             ))}
           </div>
         )}
 
+        {/* 输入区与面板共用底色，局部覆盖全局表单底色令牌。 */}
         <Textarea
           value={prompt}
           onChange={(event) => onFormChange({ prompt: event.target.value })}
           onPaste={handlePaste}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSubmit) {
+            if (
+              (event.metaKey || event.ctrlKey) &&
+              event.key === "Enter" &&
+              canSubmit
+            ) {
               event.preventDefault();
               onSubmit();
             }
           }}
           rows={4}
-          maxLength={5000}
+          maxLength={capabilities?.videoRules ? undefined : 5000}
           aria-label={mode === "image" ? "图片提示词" : "视频提示词"}
           placeholder={
             mode === "image"
               ? "描述你想生成的画面，也可以直接粘贴参考图片…"
-              : "描述画面、动作与镜头，也可以粘贴首帧或参考图片…"
+              : "描述画面、动作与镜头…"
           }
           className={cn(
-            "min-h-32 resize-none rounded-none border-0 bg-transparent px-5 pb-4 pr-32 text-[15px] leading-7 shadow-none focus-visible:ring-0",
-            attachmentDisabledReason || attachments.length > 0 ? "pt-3" : "pt-5",
+            "min-h-32 max-h-[min(16rem,30dvh)] scroll-m-1 overflow-y-auto overscroll-contain rounded-none border-0 bg-transparent [--field-background:transparent] px-5 pb-4 pr-32 text-[15px] leading-7 shadow-none focus-visible:ring-0",
+            attachmentDisabledReason || attachments.length > 0
+              ? "pt-3"
+              : "pt-5",
           )}
         />
 
         <div className="mx-2 mb-2 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/15 bg-background/42 p-1.5 shadow-sm backdrop-blur-xl dark:border-white/6">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <GenerationAttachmentUploadMenu
               options={attachmentOptions}
               uploading={uploading}
@@ -295,7 +320,7 @@ export function GenerationSimpleComposer({
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 pl-1">
+          <div className="flex items-center gap-2 pl-1">
             {error && (
               <span
                 className="max-w-72 truncate text-[10px] text-destructive"
@@ -305,7 +330,8 @@ export function GenerationSimpleComposer({
               </span>
             )}
             <span className="hidden text-[10px] tabular-nums text-muted-foreground sm:inline">
-              {prompt.length}/5000
+              {[...prompt].length}
+              {promptLimit ? `/${promptLimit}` : " 字"}
             </span>
             <Button
               variant={mode === "image" ? "image" : "video"}
@@ -313,21 +339,23 @@ export function GenerationSimpleComposer({
               disabled={!canSubmit}
               onClick={onSubmit}
               title={
-                missingRequiredAttachments
-                  ? `至少添加 ${minAttachments} 张图片`
-                  : mode === "image"
-                    ? "生成图片"
-                    : "生成视频"
+                !modelId
+                  ? "先选择生成模型"
+                  : missingRequiredAttachments
+                    ? `至少添加 ${minAttachments} 张图片`
+                    : mode === "image"
+                      ? "生成图片"
+                      : "生成视频"
               }
               aria-label={mode === "image" ? "生成图片" : "生成视频"}
-              className="min-w-[76px] rounded-xl px-4"
+              className="min-w-20"
             >
               {submitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {submitting ? "生成中" : "生成"}
+              {submitting ? "正在提交" : "生成"}
             </Button>
           </div>
         </div>

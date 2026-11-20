@@ -1,5 +1,6 @@
 package com.stonewu.fusion.integration;
 
+import com.stonewu.fusion.integration.support.AgentRuntimeContainers;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -27,13 +28,17 @@ import com.stonewu.fusion.service.ai.run.model.RunTerminalRequest;
 import com.stonewu.fusion.service.ai.run.model.StartAgentRunCommand;
 import com.stonewu.fusion.service.ai.run.model.StartedAgentRun;
 import com.stonewu.fusion.service.ai.run.model.SystemTerminalActor;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -60,10 +65,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = false)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AgentJournalTerminalIT {
 
     private static final int CONCURRENT_APPENDS = 32;
@@ -75,11 +81,15 @@ class AgentJournalTerminalIT {
             .withUsername("afv")
             .withPassword("afv-test");
 
+    @Container
+    private static final GenericContainer<?> REDIS = AgentRuntimeContainers.redis();
+
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry properties) {
         properties.add("spring.datasource.url", MYSQL::getJdbcUrl);
         properties.add("spring.datasource.username", MYSQL::getUsername);
         properties.add("spring.datasource.password", MYSQL::getPassword);
+        AgentRuntimeContainers.registerRedisProperties(properties, REDIS);
         properties.add("spring.datasource.hikari.maximum-pool-size", () -> 40);
         properties.add("spring.datasource.hikari.minimum-idle", () -> 0);
         properties.add("app.agentscope.runtime.journal-threads", () -> 32);
@@ -109,10 +119,8 @@ class AgentJournalTerminalIT {
     @MockitoBean
     private AgentRunRedisSignalService signals;
 
-    @BeforeEach
-    void stubRedisSignals() {
-        when(signals.publishWakeup(anyString(), anyLong())).thenReturn(Mono.empty());
-    }
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void allocatesGapFreePerRunSequenceUnderConcurrentAppends() throws Exception {
@@ -235,22 +243,25 @@ class AgentJournalTerminalIT {
     }
 
     @Test
-    void publishesOwnedAndSystemTerminalWakeupsOnlyAfterCommit() {
-        when(signals.publishWakeup(anyString(), anyLong()))
-                .thenAnswer(invocation -> {
-                    String runId = invocation.getArgument(0);
-                    long sequence = invocation.getArgument(1);
-                    AgentEvent event = eventMapper.selectOne(
-                            new LambdaQueryWrapper<AgentEvent>()
-                                    .eq(AgentEvent::getRunId, runId)
-                                    .eq(AgentEvent::getSequenceNo, sequence));
-                    assertThat(event).isNotNull();
-                    assertThat(event.getOutputType())
-                            .isIn("DONE", "ERROR", "CANCELLED");
-                    assertThat(requireRun(runId).getTerminalSequence())
-                            .isEqualTo(sequence);
-                    return Mono.empty();
-                });
+    void notifiesOwnedAndSystemTerminalCommitsOnlyAfterCommit() {
+        var independentRead = new TransactionTemplate(transactionManager);
+        independentRead.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        doAnswer(invocation -> {
+            independentRead.executeWithoutResult(ignored -> {
+                String runId = invocation.getArgument(0);
+                long sequence = invocation.getArgument(1);
+                AgentEvent event = eventMapper.selectOne(
+                        new LambdaQueryWrapper<AgentEvent>()
+                                .eq(AgentEvent::getRunId, runId)
+                                .eq(AgentEvent::getSequenceNo, sequence));
+                assertThat(event).isNotNull();
+                assertThat(event.getOutputType())
+                        .isIn("DONE", "ERROR", "CANCELLED");
+                assertThat(requireRun(runId).getTerminalSequence())
+                        .isEqualTo(sequence);
+            });
+            return null;
+        }).when(signals).notifyCommitted(anyString(), anyLong());
 
         StartedAgentRun owned = startRoot("owned-terminal-signal");
         CommittedAgentEvent ownedTerminal = await(terminalCoordinator.terminateOwned(
@@ -265,8 +276,8 @@ class AgentJournalTerminalIT {
                 cancelled(system, slot(system), Set.of(AgentRunStatus.CANCEL_REQUESTED)),
                 SystemTerminalActor.CANCELLATION_COORDINATOR)).orElseThrow();
 
-        verify(signals).publishWakeup(owned.runId(), ownedTerminal.sequence());
-        verify(signals).publishWakeup(system.runId(), systemTerminal.sequence());
+        verify(signals).notifyCommitted(owned.runId(), ownedTerminal.sequence());
+        verify(signals).notifyCommitted(system.runId(), systemTerminal.sequence());
     }
 
     @Test
@@ -406,7 +417,8 @@ class AgentJournalTerminalIT {
                 Duration.ofMinutes(2),
                 Instant.now().plus(Duration.ofMinutes(10)),
                 "hello",
-                null)));
+                null,
+                null, null)));
     }
 
     private AgentKernelSnapshot snapshot() {

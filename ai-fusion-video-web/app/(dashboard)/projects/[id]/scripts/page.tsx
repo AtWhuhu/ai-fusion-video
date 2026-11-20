@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useResourceChangeStore } from "@/lib/store/resource-change-store";
+
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Loader2, Menu, Info } from "lucide-react";
 import { motion } from "framer-motion";
@@ -16,8 +18,11 @@ import {
   type Storyboard,
   type StoryboardEpisode,
 } from "@/lib/api/storyboard";
+import { useScriptMutations } from "./_components/use-script-mutations";
+import { useCommandRequestKey } from "@/hooks/use-command-request-key";
 import { EpisodeTree } from "./_components/episode-tree";
 import { SceneList } from "./_components/scene-list";
+import { useSceneNavigation } from "./_components/use-scene-navigation";
 import { SceneDetail } from "./_components/scene-detail";
 import { ScriptOverview } from "./_components/script-overview";
 import { EpisodeParseDialog } from "@/components/dashboard/episode-parse-dialog";
@@ -202,7 +207,11 @@ export default function ScriptTabPage() {
             })
           );
           
-          setEpisodeScenes((prev) => ({ ...prev, ...newEpisodeScenes }));
+          setEpisodeScenes(newEpisodeScenes);
+        } else {
+          setActiveEpisodeId(null);
+          setSelectedSceneId(null);
+          setEpisodeScenes({});
         }
       } else {
         setScript(null);
@@ -225,8 +234,8 @@ export default function ScriptTabPage() {
     }
   }, [refreshScript]);
 
-  // AI 工具执行后自动刷新
-  const scriptsInvalidation = usePipelineStore((s) => s.invalidation.scripts);
+  // 所有已提交的业务资源变化触发刷新
+  const scriptsInvalidation = useResourceChangeStore((s) => s.revisions.scripts);
   const scriptsInvRef = useRef(scriptsInvalidation);
   useEffect(() => {
     if (scriptsInvRef.current !== scriptsInvalidation) {
@@ -235,7 +244,7 @@ export default function ScriptTabPage() {
     }
   }, [scriptsInvalidation, refreshScript]);
 
-  const storyboardsInvalidation = usePipelineStore((s) => s.invalidation.storyboards);
+  const storyboardsInvalidation = useResourceChangeStore((s) => s.revisions.storyboards);
   const storyboardsInvRef = useRef(storyboardsInvalidation);
   useEffect(() => {
     if (storyboardsInvRef.current !== storyboardsInvalidation && script) {
@@ -260,6 +269,7 @@ export default function ScriptTabPage() {
   };
 
   const selectEpisode = async (episodeId: number) => {
+    cancelSceneScroll();
     setActiveEpisodeId(episodeId);
     setSelectedSceneId(null);
     if (!expandedEpisodes.has(episodeId)) {
@@ -269,179 +279,25 @@ export default function ScriptTabPage() {
     await loadEpisodeScenes(episodeId);
   };
 
-  // 追踪用户滚动状态，避免点击滚动时触发 observer 误判
-  const isUserScrollRef = useRef(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-
-  const scrollToScene = (sceneId: number) => {
-    isUserScrollRef.current = true;
-    setSelectedSceneId(sceneId);
-    const el = document.querySelector(`[data-scene-id="${sceneId}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    // 滚动动画完成后恢复 observer
-    setTimeout(() => {
-      isUserScrollRef.current = false;
-    }, 600);
-  };
+  const { scrollContainerRef, isAutoScrollingRef, scrollToScene, cancelSceneScroll } = useSceneNavigation(
+    activeEpisodeId ? episodeScenes[activeEpisodeId] : undefined, setSelectedSceneId, !loading && !!script,
+    activeEpisodeId ? loadingEpisodes.has(activeEpisodeId) : false,
+  );
 
   const handleSelectScene = (sceneId: number, episodeId: number) => {
     selectEpisode(episodeId);
-    setSelectedSceneId(sceneId);
     setLeftSheetOpen(false);
-    setTimeout(() => scrollToScene(sceneId), 50);
+    scrollToScene(sceneId);
   };
 
   // ========== 增删操作 ==========
 
-  const handleAddEpisode = async () => {
-    if (!script) return;
-    try {
-      const ep = await scriptApi.createEpisode({
-        scriptId: script.id,
-        episodeNumber: episodes.length + 1,
-        title: `第 ${episodes.length + 1} 集`,
-        sortOrder: episodes.length,
-      });
-      setEpisodes((prev) => [...prev, ep]);
-      setExpandedEpisodes((prev) => new Set(prev).add(ep.id));
-      setEpisodeScenes((prev) => ({ ...prev, [ep.id]: [] }));
-      setActiveEpisodeId(ep.id);
-    } catch (err) {
-      console.error("添加分集失败:", err);
-      toastApiError(err, "添加分集失败");
-    }
-  };
-
-  const handleDeleteEpisode = async (episodeId: number) => {
-    const ok = await confirm({ title: "删除剧本分集", description: "确定要删除该分集及其所有场次吗？此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
-    try {
-      await scriptApi.deleteEpisode(episodeId);
-      setEpisodes((prev) => prev.filter((ep) => ep.id !== episodeId));
-      setExpandedEpisodes((prev) => {
-        const next = new Set(prev);
-        next.delete(episodeId);
-        return next;
-      });
-      const newScenes = { ...episodeScenes };
-      delete newScenes[episodeId];
-      setEpisodeScenes(newScenes);
-      if (activeEpisodeId === episodeId) {
-        setActiveEpisodeId(episodes.length > 1 ? episodes[0].id : null);
-      }
-    } catch (err) {
-      console.error("删除分集失败:", err);
-      toastApiError(err, "删除分集失败");
-    }
-  };
-
-  const handleAddScene = async (episodeId: number) => {
-    if (!script) return;
-    const scenes = episodeScenes[episodeId] || [];
-    const ep = episodes.find((e) => e.id === episodeId);
-    const epNum = ep?.episodeNumber || 1;
-    try {
-      const scene = await scriptApi.createScene({
-        episodeId,
-        scriptId: script.id,
-        sceneNumber: `${epNum}-${scenes.length + 1}`,
-        sceneHeading: `新场次`,
-        sortOrder: scenes.length,
-      });
-      setEpisodeScenes((prev) => ({
-        ...prev,
-        [episodeId]: [...(prev[episodeId] || []), scene],
-      }));
-      setSelectedSceneId(scene.id);
-      setTimeout(() => scrollToScene(scene.id), 100);
-    } catch (err) {
-      console.error("添加场次失败:", err);
-      toastApiError(err, "添加场次失败");
-    }
-  };
-
-  const handleInsertScene = async (episodeId: number, atIndex: number) => {
-    if (!script) return;
-    const scenes = episodeScenes[episodeId] || [];
-    const ep = episodes.find((e) => e.id === episodeId);
-    const epNum = ep?.episodeNumber || 1;
-    try {
-      const scene = await scriptApi.createScene({
-        episodeId,
-        scriptId: script.id,
-        sceneNumber: `${epNum}-${scenes.length + 1}`,
-        sceneHeading: `新场次`,
-        sortOrder: atIndex,
-      });
-      // 将新场次插入本地数组指定位置
-      const newScenes = [...scenes];
-      newScenes.splice(atIndex, 0, scene);
-      // 更新后续场次的 sortOrder
-      const updated = newScenes.map((s, idx) => ({ ...s, sortOrder: idx }));
-      setEpisodeScenes((prev) => ({ ...prev, [episodeId]: updated }));
-      setSelectedSceneId(scene.id);
-      setTimeout(() => scrollToScene(scene.id), 100);
-      // 批量持久化 sortOrder
-      await Promise.all(
-        updated
-          .filter((s) => s.id !== scene.id)
-          .map((s) => scriptApi.updateScene({ id: s.id, sortOrder: s.sortOrder }))
-      );
-    } catch (err) {
-      console.error("插入场次失败:", err);
-      toastApiError(err, "插入场次失败");
-    }
-  };
-
-  const handleDeleteScene = async (sceneId: number, episodeId: number) => {
-    const ok = await confirm({ title: "删除场次", description: "确定要删除该场次吗？此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
-    try {
-      await scriptApi.deleteScene(sceneId);
-      setEpisodeScenes((prev) => ({
-        ...prev,
-        [episodeId]: (prev[episodeId] || []).filter((s) => s.id !== sceneId),
-      }));
-      if (selectedSceneId === sceneId) {
-        setSelectedSceneId(null);
-      }
-    } catch (err) {
-      console.error("删除场次失败:", err);
-      toastApiError(err, "删除场次失败");
-    }
-  };
-
-  const handleSceneUpdated = (episodeId: number, updated: SceneItem) => {
-    setEpisodeScenes((prev) => ({
-      ...prev,
-      [episodeId]: (prev[episodeId] || []).map((s) =>
-        s.id === updated.id ? updated : s
-      ),
-    }));
-  };
-
-  const handleReorderScenes = async (episodeId: number, oldIndex: number, newIndex: number) => {
-    // 乐观更新 UI
-    const prevScenes = episodeScenes[episodeId] || [];
-    const scenes = [...prevScenes];
-    const [moved] = scenes.splice(oldIndex, 1);
-    scenes.splice(newIndex, 0, moved);
-    setEpisodeScenes((prev) => ({ ...prev, [episodeId]: scenes }));
-
-    // 持久化到后端：为每个场次更新 sortOrder
-    try {
-      await Promise.all(
-        scenes.map((scene, idx) =>
-          scriptApi.updateScene({ id: scene.id, sortOrder: idx })
-        )
-      );
-    } catch (err) {
-      console.error("排序保存失败，已回滚:", err);
-      toastApiError(err, "排序保存失败，已回滚");
-      // 回滚
-      setEpisodeScenes((prev) => ({ ...prev, [episodeId]: prevScenes }));
-    }
-  };
+  const { handleAddEpisode, handleDeleteEpisode, handleAddScene, handleInsertScene, handleDeleteScene, handleSceneUpdated, handleReorderScenes } = useScriptMutations({
+    script, episodes, episodeScenes, setEpisodeScenes, setExpandedEpisodes, setActiveEpisodeId,
+    setSelectedSceneId, refreshScript, scrollToScene,
+  });
+  const episodeParseRequest = useCommandRequestKey();
+  const storyboardRebuildRequest = useCommandRequestKey();
 
   // ========== 分集 AI 解析 ==========
 
@@ -457,7 +313,10 @@ export default function ScriptTabPage() {
 
     try {
       // 1. 先保存原文到分集记录
-      await scriptApi.updateEpisode({ id: episodeToParseId, rawContent });
+      const update = { id: episodeToParseId, version: ep.version, rawContent };
+      await scriptApi.updateEpisode(update, episodeParseRequest.forPayload(update));
+      episodeParseRequest.clear();
+      await refreshScript();
 
       // 2. 启动 script_episode_parse Pipeline
       const pipelineId = addPipeline({
@@ -526,7 +385,9 @@ export default function ScriptTabPage() {
       if (boundEpisode) {
         const confirmed = await confirm({ title: "覆盖生成本集分镜", description: `将覆盖第 ${ep.episodeNumber} 集已有分镜内容，不影响其它集。确定继续？`, variant: "ai", confirmText: "确定覆盖生成" });
         if (!confirmed) return;
-        await storyboardApi.clearEpisodeContent(boundEpisode.id);
+        await storyboardApi.clearEpisodeContent(boundEpisode.id, boundEpisode.version,
+          storyboardRebuildRequest.forPayload({ id: boundEpisode.id, version: boundEpisode.version }));
+        storyboardRebuildRequest.clear();
       }
 
       const pipelineId = addPipeline({
@@ -585,9 +446,9 @@ export default function ScriptTabPage() {
     : null;
 
   const activeEpisode = episodes.find((ep) => ep.id === activeEpisodeId);
-  const activeScenes = activeEpisodeId
+  const activeScenes = useMemo(() => activeEpisodeId
     ? episodeScenes[activeEpisodeId] || []
-    : [];
+    : [], [activeEpisodeId, episodeScenes]);
   const isActiveLoading = activeEpisodeId
     ? loadingEpisodes.has(activeEpisodeId)
     : false;
@@ -595,11 +456,15 @@ export default function ScriptTabPage() {
   // ========== 滚动监听：IntersectionObserver ==========
   useEffect(() => {
     const container = scrollContainerRef.current;
-    if (!container || activeScenes.length === 0) return;
+    if (!container || isActiveLoading || activeScenes.length === 0) {
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (isUserScrollRef.current) return;
+        if (isAutoScrollingRef.current) {
+          return;
+        }
         // 找到最靠近顶部且可见的场次
         let topEntry: IntersectionObserverEntry | null = null;
         for (const entry of entries) {
@@ -621,17 +486,13 @@ export default function ScriptTabPage() {
       }
     );
 
-    // 延迟一点绑定，确保 DOM 已经渲染完毕
-    const timer = setTimeout(() => {
-      const elements = container.querySelectorAll("[data-scene-id]");
-      elements.forEach((el) => observer.observe(el));
-    }, 100);
+    const elements = container.querySelectorAll("[data-scene-id]");
+    elements.forEach((el) => observer.observe(el));
 
     return () => {
-      clearTimeout(timer);
       observer.disconnect();
     };
-  }, [activeScenes]);
+  }, [activeScenes, isActiveLoading, isAutoScrollingRef, scrollContainerRef]);
 
   // ========== 渲染 ==========
 
@@ -691,7 +552,7 @@ export default function ScriptTabPage() {
           <Sheet open={leftSheetOpen} onOpenChange={setLeftSheetOpen}>
             <SheetTrigger
               render={
-                <button className="xl:hidden p-1.5 -ml-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+                <button aria-label="打开剧本目录" className="xl:hidden p-1.5 -ml-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
                   <Menu className="h-5 w-5" />
                 </button>
               }
@@ -723,7 +584,7 @@ export default function ScriptTabPage() {
           <Sheet open={rightSheetOpen} onOpenChange={setRightSheetOpen}>
             <SheetTrigger
               render={
-                <button className="p-1.5 -mr-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+                <button aria-label="打开场景详情" className="p-1.5 -mr-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors">
                   <Info className="h-5 w-5" />
                 </button>
               }
@@ -749,6 +610,7 @@ export default function ScriptTabPage() {
             onInsertScene={handleInsertScene}
             onDeleteScene={handleDeleteScene}
             onEpisodeUpdated={(updated) => {
+              void refreshScript();
               setEpisodes((prev) =>
                 prev.map((ep) => (ep.id === updated.id ? updated : ep))
               );

@@ -62,6 +62,21 @@ class AgentScopeEventMapperTests {
     private final AgentScopeEventMapper mapper = new AgentScopeEventMapper(objectMapper, sanitizer);
 
     @Test
+    void modelRetryPreservesTheFailedReplyAndParentForTimelineRecovery() {
+        var event = new CustomEvent("model_retry", Map.of("replyId", "failed-reply", "content", "2 秒后重试（1/3）"));
+        event.withSource("main/asset-preprocessor");
+        event.withMetadata(Map.of("parentToolCallId", "parent-tool"));
+
+        var mapped = mapper.map(event);
+
+        assertThat(mapped.outputType()).isEqualTo("MODEL_RETRY");
+        assertThat(mapped.rawEventType()).isEqualTo("CUSTOM");
+        assertThat(mapped.replyId()).isEqualTo("failed-reply");
+        assertThat(mapped.parentToolCallId()).isEqualTo("parent-tool");
+        assertThat(mapped.payload().path("content").asText()).isEqualTo("2 秒后重试（1/3）");
+    }
+
+    @Test
     void derivesIdentityForEveryGaEventSubtypeAndCoversAllThirtyOneTypes() {
         List<IdentityCase> cases = identityCases();
 
@@ -152,6 +167,7 @@ class AgentScopeEventMapperTests {
         assertThat(mapper.map(new ToolResultEndEvent(
                 "r", "c", "tool", ToolResultState.SUCCESS)).outputType())
                 .isEqualTo("TOOL_FINISHED");
+        assertThat(mapper.map(new ToolResultEndEvent("r", "c", "tool", ToolResultState.RUNNING)).outputType()).isNull();
         assertThat(mapper.map(new SubagentExposedEvent(
                 "sub", "researcher", "session", "Researcher")).outputType())
                 .isEqualTo("SUB_AGENT_STARTED");
@@ -160,7 +176,7 @@ class AgentScopeEventMapperTests {
         assertThat(mapper.map(new RequireUserConfirmEvent("r", List.of())).outputType())
                 .isNull();
         assertThat(mapper.map(new RequireExternalExecutionEvent("r", List.of())).outputType())
-                .isEqualTo("EXTERNAL_EXECUTION_REQUIRED");
+                .isNull();
         assertThat(mapper.map(new UserConfirmResultEvent("r", List.of())).outputType())
                 .isNull();
         assertThat(mapper.map(new ExternalExecutionResultEvent("r", List.of())).outputType())

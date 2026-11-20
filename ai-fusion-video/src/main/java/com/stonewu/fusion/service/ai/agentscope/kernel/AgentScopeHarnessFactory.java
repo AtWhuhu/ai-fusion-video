@@ -1,14 +1,19 @@
 package com.stonewu.fusion.service.ai.agentscope.kernel;
 
 import com.stonewu.fusion.config.AgentScopeV2Properties;
+import com.stonewu.fusion.service.ai.agentscope.permission.AgentToolPermissionPolicy;
+import com.stonewu.fusion.service.ai.agentscope.permission.ToolExecutionMode;
+import com.stonewu.fusion.service.ai.agentscope.skill.AgentScopeSkillRegistry;
 import com.stonewu.fusion.service.ai.agentscope.state.AgentScopeShutdownRecoveryBridge;
 import com.stonewu.fusion.service.ai.agentscope.state.StateStoreFailureGuard;
 import com.stonewu.fusion.service.ai.agentscope.state.StateStoreGuardedChatModel;
-import com.stonewu.fusion.service.ai.agentscope.skill.AgentScopeSkillRegistry;
 import com.stonewu.fusion.service.ai.agentscope.workspace.AgentWorkspaceBaseStore;
-import com.stonewu.fusion.service.ai.agentscope.permission.AgentToolPermissionPolicy;
-import com.stonewu.fusion.service.ai.agentscope.permission.ToolExecutionMode;
 import io.agentscope.core.model.ExecutionConfig;
+import com.stonewu.fusion.service.ai.run.AgentExecutionLimits;
+import com.stonewu.fusion.service.ai.text.LongToolResultMiddleware;
+import com.stonewu.fusion.service.ai.agentscope.message.AgentModelRetryMiddleware;
+import com.stonewu.fusion.service.ai.text.LongToolResultStore;
+import com.stonewu.fusion.service.ai.tool.ReadToolResultToolExecutor;
 import io.agentscope.core.state.AgentStateStore;
 import io.agentscope.core.tool.Toolkit;
 import io.agentscope.core.tool.ToolkitConfig;
@@ -37,6 +42,7 @@ public final class AgentScopeHarnessFactory {
     private final AgentScopeShutdownRecoveryBridge shutdownRecoveryBridge;
     private final AgentScopeSkillRegistry skillRegistry;
     private final BaseStore workspaceStore;
+    private final LongToolResultStore longToolResults;
 
     @Autowired
     public AgentScopeHarnessFactory(
@@ -46,7 +52,8 @@ public final class AgentScopeHarnessFactory {
             StateStoreFailureGuard failures,
             AgentScopeShutdownRecoveryBridge shutdownRecoveryBridge,
             ObjectProvider<AgentScopeSkillRegistry> skillRegistries,
-            ObjectProvider<AgentWorkspaceBaseStore> workspaceStores) {
+            ObjectProvider<AgentWorkspaceBaseStore> workspaceStores,
+            ObjectProvider<LongToolResultStore> longToolResults) {
         this(
                 modelFactory,
                 toolRegistry,
@@ -54,7 +61,7 @@ public final class AgentScopeHarnessFactory {
                 failures,
                 shutdownRecoveryBridge,
                 skillRegistries.getIfAvailable(AgentScopeHarnessFactory::disabledSkillRegistry),
-                workspaceStores.getIfAvailable());
+                workspaceStores.getIfAvailable(), longToolResults.getIfAvailable());
     }
 
     AgentScopeHarnessFactory(
@@ -76,6 +83,19 @@ public final class AgentScopeHarnessFactory {
             AgentScopeShutdownRecoveryBridge shutdownRecoveryBridge,
             AgentScopeSkillRegistry skillRegistry,
             BaseStore workspaceStore) {
+        this(modelFactory, toolRegistry, stateStore, failures, shutdownRecoveryBridge, skillRegistry, workspaceStore,
+                null);
+    }
+
+    AgentScopeHarnessFactory(
+            AgentKernelModelFactory modelFactory,
+            AgentKernelToolRegistry toolRegistry,
+            AgentStateStore stateStore,
+            StateStoreFailureGuard failures,
+            AgentScopeShutdownRecoveryBridge shutdownRecoveryBridge,
+            AgentScopeSkillRegistry skillRegistry,
+            BaseStore workspaceStore,
+            LongToolResultStore longToolResults) {
         this.modelFactory = Objects.requireNonNull(modelFactory, "modelFactory must not be null");
         this.toolRegistry = Objects.requireNonNull(toolRegistry, "toolRegistry must not be null");
         this.stateStore = Objects.requireNonNull(stateStore, "stateStore must not be null");
@@ -85,6 +105,7 @@ public final class AgentScopeHarnessFactory {
         this.skillRegistry = Objects.requireNonNull(
                 skillRegistry, "skillRegistry must not be null");
         this.workspaceStore = workspaceStore;
+        this.longToolResults = longToolResults;
     }
 
     public AgentScopeHarnessFactory(
@@ -132,17 +153,27 @@ public final class AgentScopeHarnessFactory {
                     .sysPrompt(spec.systemPrompt())
                     .model(new StateStoreGuardedChatModel(
                             ownedModel.model(), failures, contextWindow))
+                    // 网络层只发送一次；会话层为每次重试重新受理并沿用已保存上下文。
+                    .maxRetries(1)
                     .stateStore(stateStore)
                     .toolkit(toolkit)
                     .permissionContext(AgentToolPermissionPolicy.contextFor(
                             toolkit, ToolExecutionMode.DEFAULT))
                     .middleware(shutdownRecoveryBridge)
+                    .middleware(new AgentModelRetryMiddleware(failures))
                     .compaction(compactionConfig(contextWindow))
                     .maxIters(spec.maxIters())
+                    .toolExecutionConfig(ExecutionConfig.builder()
+                            .timeout(AgentExecutionLimits.FRAMEWORK_TOOL_TIMEOUT).maxAttempts(1).build())
                     .disableFilesystemTools()
+                    .disableToolResultEviction()
                     .disableShellTool()
+                    .disableWebTools()
                     .disableMemoryTools()
                     .disableMemoryHooks()
+                    // 对话由平台日志和 AgentStateStore 保存，不生成 SDK 的本地文本副本。
+                    .disableTranscript()
+                    .enableAgentTracingLog(false)
                     .disableSessionPersistence()
                     .disableWorkspaceContext()
                     .disableAtPathExpansion()
@@ -155,13 +186,21 @@ public final class AgentScopeHarnessFactory {
             } else {
                 builder.disableDefaultWorkspaceSkills();
             }
-            if (skillRegistry.enabled()) {
+            if (spec.toolWhitelist().contains(ReadToolResultToolExecutor.NAME)) {
+                builder.middleware(new LongToolResultMiddleware(
+                        Objects.requireNonNull(longToolResults, "长工具结果读取需要工作空间存储"),
+                        spec.model().getContextWindow()));
+            }
+            boolean canvasBound = "true".equals(spec.promptVariables().get("canvasBound"))
+                    || "true".equals(spec.promptVariables().get("canvasNodeExecution"));
+            if (!canvasBound && skillRegistry.enabled()) {
                 builder.skillRepositories(skillRegistry.repositories());
             }
-            if (workspaceStore != null || skillRegistry.enabled()) {
+            if (!canvasBound && (workspaceStore != null || skillRegistry.enabled())) {
                 builder.skillsEnabled(true);
             } else {
                 builder.disableDynamicSkills()
+                        .disableDefaultWorkspaceSkills()
                         .skillsEnabled(false);
             }
             agent = builder.build();
@@ -195,13 +234,15 @@ public final class AgentScopeHarnessFactory {
     }
 
     static CompactionConfig compactionConfig(Integer contextWindow) {
+        // 摘要前的全文由平台日志保存；不另写包含会话标识的本地文件。
+        var builder = CompactionConfig.builder().offloadBeforeCompact(false).flushBeforeCompact(false);
         if (contextWindow == null || contextWindow <= 0) {
-            return CompactionConfig.builder().build();
+            return builder.build();
         }
         int triggerTokens = Math.max(
                 1,
                 (int) ((long) contextWindow * COMPACTION_TRIGGER_PERCENT / 100));
-        return CompactionConfig.builder()
+        return builder
                 .triggerMessages(0)
                 .triggerTokens(triggerTokens)
                 .build();

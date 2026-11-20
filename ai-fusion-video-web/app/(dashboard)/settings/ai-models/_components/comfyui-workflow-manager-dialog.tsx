@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DialogContent } from "@/components/shared/dialog-content";
 import type { ApiConfig } from "@/lib/api/ai-model";
 import { toastApiError } from "@/lib/api/toast-api-error";
 import { comfyUiWorkflowApi, type ComfyUiWorkflow } from "@/lib/api/comfyui-workflow";
@@ -86,12 +86,12 @@ export function ComfyUiWorkflowManagerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[min(96vw,1400px)] h-[min(900px,calc(100vh-2rem))] flex flex-col overflow-hidden">
         <DialogHeader className="shrink-0">
-          <DialogTitle>{apiConfig?.name || "ComfyUI"} · 工作流</DialogTitle>
+          <DialogTitle className="break-words pr-8">{apiConfig?.name || "ComfyUI"} · 工作流</DialogTitle>
           <DialogDescription>通过导入 ComfyUI 的 API-JSON，并且完成输入输出绑定、在线校验和试运行，即可将工作流配置到模型中，在添加模型的时候关联已发布的工作流即可。</DialogDescription>
         </DialogHeader>
 
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col rounded-xl border border-border/30 bg-card/50 p-3 backdrop-blur-sm">
+          <aside data-sidebar-navigation="workflows" className="flex min-h-0 flex-col rounded-xl border border-border/30 bg-card p-3">
             <div className="flex shrink-0 items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold">工作流目录</p>

@@ -52,7 +52,8 @@ public class AiModelMetadataResolver {
                 normalizeProtocol(model != null ? model.getModelProtocol() : null));
     }
 
-    public RemoteModelMetadata resolveRemoteModel(String providerPlatform, String modelId, String ownedBy, Integer modelType) {
+    public RemoteModelMetadata resolveRemoteModel(String providerPlatform, String modelId, String ownedBy,
+                                                  Integer modelType) {
         String normalizedPlatform = normalizePlatform(providerPlatform);
         Integer inferredModelType = inferRemoteModelType(normalizedPlatform, modelId, ownedBy, modelType);
         String displayName = StrUtil.blankToDefault(ownedBy, modelId);
@@ -79,7 +80,7 @@ public class AiModelMetadataResolver {
         String normalized = platform.trim().toLowerCase(Locale.ROOT);
         return switch (normalized) {
             case "openai" -> "openai_compatible";
-            case "vertexai" -> "vertex_ai";
+            case "vertexai", "vertex_ai_api_key" -> "vertex_ai";
             default -> normalized;
         };
     }

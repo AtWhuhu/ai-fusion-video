@@ -218,7 +218,7 @@ public class EasyColabService {
     private Long upsertApiConfig(ApiConfig existing, String comfyUiUrl, String password) {
         String remark = "由 EasyColab 一键唤醒自动维护，地址随每次唤醒更新";
         if (existing != null) {
-            apiConfigService.updateApiConfig(existing.getId(), null, null, null, null, null,
+            apiConfigService.updateApiConfig(existing.getId(), null, null, null, null, null, null,
                     comfyUiUrl, false, null, null, null, null, null,
                     password, EasyColabRuntimeClient.ADMIN_USERNAME, null, null, 1, remark);
             return existing.getId();
@@ -243,7 +243,7 @@ public class EasyColabService {
             }
             ApiConfig managed = findManagedApiConfig();
             if (managed != null) {
-                apiConfigService.updateApiConfig(managed.getId(), null, null, null, null, null,
+                apiConfigService.updateApiConfig(managed.getId(), null, null, null, null, null, null,
                         null, null, null, null, null, null, null,
                         null, null, null, null, 0, null);
             }

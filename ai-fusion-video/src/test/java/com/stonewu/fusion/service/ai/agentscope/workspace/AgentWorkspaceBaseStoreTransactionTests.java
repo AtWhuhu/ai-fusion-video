@@ -5,8 +5,11 @@ import com.stonewu.fusion.entity.ai.AgentWorkspaceEntry;
 import com.stonewu.fusion.mapper.ai.AgentWorkspaceEntryMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
 import java.util.Map;
@@ -24,7 +27,7 @@ class AgentWorkspaceBaseStoreTransactionTests {
     private final AgentWorkspaceConfigService configService = mock(AgentWorkspaceConfigService.class);
     private final AgentWorkspacePayloadService payloadService = mock(AgentWorkspacePayloadService.class);
     private final AgentWorkspaceBaseStore store = new AgentWorkspaceBaseStore(
-            entryMapper, configService, payloadService, new ObjectMapper());
+            entryMapper, configService, payloadService, new ObjectMapper(), mock(PlatformTransactionManager.class));
 
     @AfterEach
     void clearTransactionSynchronization() {
@@ -104,6 +107,17 @@ class AgentWorkspaceBaseStoreTransactionTests {
         when(configService.lockWritableLocation()).thenReturn(location);
         when(payloadService.write(anyString(), eq(location))).thenReturn(next);
         return new Fixture(previous, next);
+    }
+
+    @Test void externalPayloadStoresItsMediaIndexInTheSameMetadataWrite() {
+        fixture(); beginTransaction();
+        String media="541f8aac-59fb-46e9-b383-8e8985df4183";
+        store.put(List.of("namespace"),"/skill/SKILL.md",Map.of("content","使用 [图片](media://"+media+")"));
+        var entry=ArgumentCaptor.forClass(AgentWorkspaceEntry.class);
+        verify(entryMapper).updateById(entry.capture());
+        assertThat(entry.getValue().getBackendType()).isEqualTo(AgentWorkspaceBackend.LOCAL);
+        assertThat(entry.getValue().getMediaReferencesJson()).isEqualTo("[\"media://"+media+"\"]");
+        assertThat(entry.getValue().getVersion()).isEqualTo(2);
     }
 
     private void beginTransaction() {
