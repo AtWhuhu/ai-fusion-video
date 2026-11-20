@@ -73,6 +73,18 @@ public class EasyColabService {
         return objectMapper.convertValue(state, EasyColabRuntimeState.class);
     }
 
+    /** 渠道配置里的 EasyColab 管理密码，用于登录 EasyColab 控制台 */
+    public String adminPassword() {
+        ApiConfig managed;
+        synchronized (this) {
+            managed = findManagedApiConfig();
+        }
+        if (managed == null || StrUtil.isBlank(managed.getApiKey())) {
+            throw new BusinessException(404, "EasyColab 渠道尚未就绪，请先唤醒实例");
+        }
+        return managed.getApiKey();
+    }
+
     public JsonNode authStatus() {
         return bridge.runJson("auth_status");
     }
