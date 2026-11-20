@@ -24,15 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
-/** Rebuilds conversation messages deterministically from the committed event journal. */
+/**
+ * Rebuilds conversation messages deterministically from the committed event journal.
+ */
 @Service
 @RequiredArgsConstructor
 public class AgentMessageProjectionService {
@@ -82,7 +78,9 @@ public class AgentMessageProjectionService {
                 .subscribeOn(schedulers.journal())
                 .flatMapMany(Flux::fromIterable)
                 .flatMapDelayError(run -> projectThrough(
-                                run.getRunId(), run.getTerminalSequence()),
+                                run.getRunId(), run.getTerminalSequence())
+                                .onErrorMap(failure -> new IllegalStateException(
+                                        "智能体历史消息恢复失败: runId=" + run.getRunId(), failure)),
                         1,
                         1)
                 .then();
@@ -93,7 +91,7 @@ public class AgentMessageProjectionService {
                         transactionTemplate.execute(ignored ->
                                 projectChunk(runId, throughSequence))))
                 .subscribeOn(schedulers.journal())
-                .flatMap(progress -> progress.cursor() >= throughSequence
+                .flatMap(progress -> progress.conversationDeleted() || progress.cursor() >= throughSequence
                         ? Mono.empty()
                         : projectNextChunk(runId, throughSequence));
     }
@@ -104,6 +102,14 @@ public class AgentMessageProjectionService {
             throw new IllegalArgumentException("Agent run does not exist: " + runId);
         }
         long cursor = requireCursor(run);
+        // 批次选出记录后仍可能删除会话；与删除操作共用行锁，禁止继续写入已删除会话。
+        AgentConversation conversation = conversationMapper.selectProjectionConversationForUpdate(run.getConversationId());
+        if (conversation == null) {
+            throw new IllegalStateException("智能体会话记录不存在: " + run.getConversationId());
+        }
+        if (Boolean.TRUE.equals(conversation.getDeleted())) {
+            return new ProjectionProgress(cursor, true);
+        }
         long lastCommitted = requireLastCommittedSequence(run);
         if (cursor > lastCommitted) {
             throw new IllegalStateException(
@@ -117,7 +123,7 @@ public class AgentMessageProjectionService {
         }
         if (cursor >= throughSequence) {
             repairProjectionCompletion(run, cursor);
-            return new ProjectionProgress(cursor);
+            return new ProjectionProgress(cursor, false);
         }
 
         List<AgentEvent> events = eventMapper.selectProjectionRange(
@@ -142,7 +148,7 @@ public class AgentMessageProjectionService {
         }
         long projectedThrough = events.getLast().getSequenceNo();
         advanceCursor(run, projectedThrough);
-        return new ProjectionProgress(projectedThrough);
+        return new ProjectionProgress(projectedThrough, false);
     }
 
     private void projectBoundary(AgentRun run, AgentEvent event) {
@@ -153,6 +159,8 @@ public class AgentMessageProjectionService {
         if (outputType == null
                 || "CONTENT".equals(outputType)
                 || "REASONING".equals(outputType)
+                || "TOOL_CALL_STARTED".equals(outputType)
+                || "MODEL_RETRY".equals(outputType)
                 || "SUB_AGENT_STARTED".equals(outputType)) {
             return;
         }
@@ -166,7 +174,7 @@ public class AgentMessageProjectionService {
             projectRejectedTools(run, event);
         } else if ("CANCELLED".equals(outputType)
                 && AgentConfirmationExpiryCoordinator.REASON.equals(
-                        payload(event).path("cancellationReason").asText())) {
+                payload(event).path("cancellationReason").asText())) {
             projectExpiredConfirmation(run, event);
         }
     }
@@ -357,8 +365,8 @@ public class AgentMessageProjectionService {
     private AgentMessage toolResultProjection(AgentRun run, AgentEvent event) {
         JsonNode payload = payload(event);
         String toolName = firstText(payload, "toolCallName", "toolName", "name");
-        String result = collectToolDeltas(
-                run.getRunId(), event.getToolCallId(), event.getSequenceNo(), false);
+        String result = "PLATFORM_TOOL_RESULT".equals(event.getRawEventType()) ? firstText(payload, "result")
+                : collectToolDeltas(run.getRunId(), event.getToolCallId(), event.getSequenceNo(), false);
         if (result == null) {
             result = firstText(payload, "result", "output", "delta");
         }
@@ -445,11 +453,11 @@ public class AgentMessageProjectionService {
                 || !Objects.equals(existing.getToolStatus(), candidate.getToolStatus())
                 || !Objects.equals(existing.getToolCallId(), candidate.getToolCallId())
                 || !Objects.equals(existing.getParentToolCallId(),
-                        candidate.getParentToolCallId())
+                candidate.getParentToolCallId())
                 || !Objects.equals(existing.getReasoningContent(),
-                        candidate.getReasoningContent())
+                candidate.getReasoningContent())
                 || !Objects.equals(existing.getReasoningDurationMs(),
-                        candidate.getReasoningDurationMs())) {
+                candidate.getReasoningDurationMs())) {
             throw new IllegalStateException(
                     "Projection key resolves to a different Agent message: "
                             + candidate.getProjectionKey());
@@ -511,7 +519,7 @@ public class AgentMessageProjectionService {
             case "ERROR" -> "error";
             case "CANCELLED" -> "cancelled";
             default -> throw new IllegalStateException(
-                            "Unsupported Agent terminal output type: "
+                    "Unsupported Agent terminal output type: "
                             + run.getTerminalOutputType());
         };
         if (conversationMapper.update(null,
@@ -624,6 +632,6 @@ public class AgentMessageProjectionService {
                 progress, "Agent projection transaction returned no result");
     }
 
-    private record ProjectionProgress(long cursor) {
+    private record ProjectionProgress(long cursor, boolean conversationDeleted) {
     }
 }

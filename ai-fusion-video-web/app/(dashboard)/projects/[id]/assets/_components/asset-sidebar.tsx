@@ -5,7 +5,7 @@ import type { AssetWithItems } from "@/lib/api/asset";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SafeImage } from "@/components/ui/safe-image";
+import { SafeImage } from "@/components/media/managed-image";
 import { resolveMediaUrl } from "@/lib/api/client";
 import { ASSET_TYPES, getAssetType } from "./asset-types";
 
@@ -40,7 +40,7 @@ export function AssetSidebar({
   });
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-border/50 bg-card/80 shadow-[0_18px_50px_-32px_rgba(15,23,42,.35)]">
+    <aside data-sidebar-navigation="assets" className="flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-border/50 bg-card/80 shadow-[0_18px_50px_-32px_rgba(15,23,42,.35)]">
       <div className="border-b border-border/40 px-4 pb-3.5 pt-4">
         <div className="flex items-center justify-between">
           <div>

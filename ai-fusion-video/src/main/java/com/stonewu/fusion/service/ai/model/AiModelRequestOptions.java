@@ -11,7 +11,9 @@ import com.stonewu.fusion.entity.ai.AiModel;
 import java.util.List;
 import java.util.Objects;
 
-/** Builds immutable, request-local model options without mutating the persisted model. */
+/**
+ * Builds immutable, request-local model options without mutating the persisted model.
+ */
 public final class AiModelRequestOptions {
 
     private static final String REASONING_EFFORT = "reasoningEffort";
@@ -54,6 +56,11 @@ public final class AiModelRequestOptions {
         }
         JsonNode value = modelOptions.get(REASONING_EFFORT);
         return value != null && value.isTextual() ? normalize(value.asText()) : null;
+    }
+
+    /** 空配置表示没有附加参数，非空内容必须按模型配置规则解析。 */
+    public static String reasoningEffort(String configJson, ObjectMapper objectMapper) {
+        return reasoningEffort(parseConfig(configJson, objectMapper));
     }
 
     private static ObjectNode parseConfig(String configJson, ObjectMapper objectMapper) {

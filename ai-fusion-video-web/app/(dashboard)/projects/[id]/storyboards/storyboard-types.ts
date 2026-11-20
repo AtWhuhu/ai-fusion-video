@@ -1,6 +1,7 @@
 import type { StoryboardScene, StoryboardItem } from "@/lib/api/storyboard";
 
 export const SIDEBAR_COLLAPSED_STORAGE_KEY = "fusion-storyboard-sidebar-collapsed";
+export const DETAILS_COLLAPSED_STORAGE_KEY = "fusion-storyboard-details-collapsed";
 
 export interface SidebarSelection {
   type: "all" | "episode" | "scene";

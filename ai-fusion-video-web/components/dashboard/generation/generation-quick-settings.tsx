@@ -2,11 +2,14 @@
 
 import type { AiModel } from "@/lib/api/ai-model";
 import type { GenerationCapabilities } from "@/lib/generation-capabilities";
+import { ImageOutputPickers } from "@/components/generation/image-output-pickers";
 import { GenerationModelPicker } from "./generation-model-picker";
 import { GenerationDurationSlider } from "./generation-duration-slider";
 import { GenerationQuickSelect } from "./generation-quick-select";
 import type { GenerationFormState, WorkbenchMode } from "./generation-types";
 import { parseLimit } from "./generation-utils";
+import { videoDurationOptions, videoMaxDuration } from "@/lib/video-model-rules";
+import { GenerationVideoOutputPickers } from "./generation-video-output-pickers";
 
 interface GenerationQuickSettingsProps {
   mode: WorkbenchMode;
@@ -40,27 +43,11 @@ export function GenerationQuickSettings({
         onChange={onModelChange}
       />
 
-      <GenerationQuickSelect
-        value={form.ratio}
-        placeholder="比例"
-        options={(capabilities?.supportedAspectRatios || []).map((value) => ({
-          value,
-          label: `比例 ${value}`,
-          menuLabel: value,
-        }))}
-        onChange={(ratio) => onFormChange({ ratio })}
-      />
-
-      <GenerationQuickSelect
-        value={form.resolution}
-        placeholder="分辨率"
-        options={(capabilities?.supportedResolutions || []).map((value) => ({
-          value,
-          label: value,
-        }))}
-        contentClassName="min-w-28"
-        onChange={(resolution) => onFormChange({ resolution })}
-      />
+      {mode === "image" ? (
+        <ImageOutputPickers compact capabilities={capabilities} form={form} onChange={onFormChange} />
+      ) : (
+        <GenerationVideoOutputPickers compact capabilities={capabilities} form={form} onChange={onFormChange} />
+      )}
 
       <GenerationQuickSelect
         value={String(form.count)}
@@ -78,7 +65,9 @@ export function GenerationQuickSettings({
           compact
           value={form.duration}
           min={capabilities.minDuration}
-          max={capabilities.maxDuration}
+          max={videoMaxDuration(capabilities, form.resolution)}
+          automatic={capabilities.videoRules?.automaticDuration}
+          options={videoDurationOptions(capabilities, form.resolution)}
           onChange={(duration) => onFormChange({ duration })}
         />
       )}

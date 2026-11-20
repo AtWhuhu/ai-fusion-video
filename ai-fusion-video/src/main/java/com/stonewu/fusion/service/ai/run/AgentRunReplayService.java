@@ -5,8 +5,8 @@ import com.stonewu.fusion.repository.ai.AgentEventRepository.ReplaySnapshot;
 import com.stonewu.fusion.service.ai.agentscope.runtime.AgentRuntimeSchedulers;
 import com.stonewu.fusion.service.ai.run.model.CommittedAgentEvent;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -15,9 +15,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** Ordered replay/live bridge whose only durable source is the MySQL journal. */
+/**
+ * Ordered replay/live bridge whose only durable source is the MySQL journal.
+ */
 @Service
 @Slf4j
 public class AgentRunReplayService {
@@ -59,26 +62,19 @@ public class AgentRunReplayService {
             AtomicLong deliveredTerminal = new AtomicLong(
                     afterSequence == 0 ? 0 : afterSequence);
             ReplayWakeGate gate = new ReplayWakeGate();
-            java.util.concurrent.atomic.AtomicBoolean firstSnapshot =
-                    new java.util.concurrent.atomic.AtomicBoolean(true);
-            return signals.wakeupsWhenSubscribed(safeRunId)
-                    .onErrorResume(failure -> {
-                        log.warn(
-                                "Agent replay Redis subscription unavailable; polling MySQL: runId={}, type={}",
-                                safeRunId,
-                                failure.getClass().getSimpleName());
-                        return Mono.just(Flux.<Long>never());
-                    })
-                    .flatMapMany(wakeups -> Flux.using(
-                            () -> subscribeWakeups(
-                                    safeRunId, wakeups, gate),
-                            ignored -> replayCycle(
-                                    safeRunId,
-                                    cursor,
-                                    deliveredTerminal,
-                                    gate,
-                                    firstSnapshot),
-                            Disposable::dispose));
+            AtomicBoolean firstSnapshot = new AtomicBoolean(true);
+            AtomicBoolean complete = new AtomicBoolean();
+            // 初次历史读取不等待 Redis 订阅握手；订阅尚未就绪时，原有周期读取仍检查同一日志游标。
+            return Flux.using(
+                    () -> subscribeWakeups(
+                            safeRunId, signals.wakeupsWhenSubscribed(safeRunId).flatMapMany(value -> value), gate),
+                    ignored -> Flux.defer(() -> replayCycle(
+                            safeRunId,
+                            cursor,
+                            deliveredTerminal,
+                            gate,
+                            firstSnapshot, complete)).repeat(() -> !complete.get()),
+                    Disposable::dispose);
         });
     }
 
@@ -101,7 +97,8 @@ public class AgentRunReplayService {
             AtomicLong cursor,
             AtomicLong deliveredTerminal,
             ReplayWakeGate gate,
-            java.util.concurrent.atomic.AtomicBoolean firstSnapshot) {
+            AtomicBoolean firstSnapshot,
+            AtomicBoolean complete) {
         return loadSnapshot(runId)
                 .flatMapMany(snapshot -> {
                     if (firstSnapshot.getAndSet(false)
@@ -113,18 +110,14 @@ public class AgentRunReplayService {
                             cursor.get(), deliveredTerminal, snapshot);
                     Flux<CommittedAgentEvent> drained = snapshot.latestSequence() > cursor.get()
                             ? drainThrough(
-                                    runId,
-                                    cursor,
-                                    deliveredTerminal,
-                                    snapshot)
-                            : Flux.empty();
-                    return drained.concatWith(Flux.defer(() -> afterDrain(
                             runId,
                             cursor,
                             deliveredTerminal,
-                            gate,
-                            snapshot,
-                            firstSnapshot)));
+                            snapshot)
+                            : Flux.empty();
+                    // 每轮结束后再订阅下一轮，避免持续运行时递归叠加 Reactor 请求链。
+                    return drained.concatWith(Mono.defer(() -> afterDrain(
+                            runId, cursor, deliveredTerminal, gate, snapshot, complete)).thenMany(Flux.empty()));
                 });
     }
 
@@ -137,9 +130,9 @@ public class AgentRunReplayService {
         return loadPage(runId, firstAfter, snapshot.latestSequence())
                 .expandDeep(page -> page.lastSequence() < snapshot.latestSequence()
                         ? loadPage(
-                                runId,
-                                page.lastSequence(),
-                                snapshot.latestSequence())
+                        runId,
+                        page.lastSequence(),
+                        snapshot.latestSequence())
                         : Mono.empty())
                 .concatMapIterable(ReplayPage::events)
                 .doOnNext(event -> advanceCursor(cursor, event))
@@ -154,58 +147,31 @@ public class AgentRunReplayService {
                 });
     }
 
-    private Flux<CommittedAgentEvent> afterDrain(
+    private Mono<Void> afterDrain(
             String runId,
             AtomicLong cursor,
             AtomicLong deliveredTerminal,
             ReplayWakeGate gate,
             ReplaySnapshot drainedSnapshot,
-            java.util.concurrent.atomic.AtomicBoolean firstSnapshot) {
+            AtomicBoolean complete) {
         Long terminalSequence = drainedSnapshot.terminalSequence();
         if (terminalSequence != null
                 && deliveredTerminal.get() >= terminalSequence) {
-            return confirmTerminalTailEmpty(
-                    runId, cursor, deliveredTerminal, gate, firstSnapshot);
+            return loadSnapshot(runId).doOnNext(confirmed -> {
+                acknowledgeCursorTerminal(cursor.get(), deliveredTerminal, confirmed);
+                Long confirmedTerminal = confirmed.terminalSequence();
+                if (confirmedTerminal != null && deliveredTerminal.get() >= confirmedTerminal
+                        && confirmed.latestSequence() <= cursor.get()) {
+                    complete.set(true);
+                }
+            }).then();
         }
-        return awaitNextCycle(
-                runId, cursor, deliveredTerminal, gate, firstSnapshot);
-    }
-
-    private Flux<CommittedAgentEvent> confirmTerminalTailEmpty(
-            String runId,
-            AtomicLong cursor,
-            AtomicLong deliveredTerminal,
-            ReplayWakeGate gate,
-            java.util.concurrent.atomic.AtomicBoolean firstSnapshot) {
-        return loadSnapshot(runId)
-                .flatMapMany(confirmed -> {
-                    acknowledgeCursorTerminal(
-                            cursor.get(), deliveredTerminal, confirmed);
-                    Long terminalSequence = confirmed.terminalSequence();
-                    if (terminalSequence != null
-                            && deliveredTerminal.get() >= terminalSequence
-                            && confirmed.latestSequence() <= cursor.get()) {
-                        return Flux.empty();
-                    }
-                    return replayCycle(
-                            runId, cursor, deliveredTerminal, gate, firstSnapshot);
-                });
-    }
-
-    private Flux<CommittedAgentEvent> awaitNextCycle(
-            String runId,
-            AtomicLong cursor,
-            AtomicLong deliveredTerminal,
-            ReplayWakeGate gate,
-            java.util.concurrent.atomic.AtomicBoolean firstSnapshot) {
         return gate.awaitDirtyOrPoll(POLL_INTERVAL)
-                .flatMapMany(sequenceHint -> {
+                .doOnNext(sequenceHint -> {
                     if (sequenceHint > 0 && sequenceHint <= cursor.get()) {
                         metrics.replayDuplicateSuppressed();
                     }
-                    return Flux.defer(() -> replayCycle(
-                            runId, cursor, deliveredTerminal, gate, firstSnapshot));
-                });
+                }).then();
     }
 
     private Mono<ReplaySnapshot> loadSnapshot(String runId) {

@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.stonewu.fusion.service.ai.model.GptImageModel;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
@@ -41,10 +42,14 @@ import java.util.Map;
 @Slf4j
 public class ModelPresetService {
 
-    /** code → 预设 JSON 对象 */
+    /**
+     * code → 预设 JSON 对象
+     */
     private final Map<String, JSONObject> presets = new LinkedHashMap<>();
 
-    /** 实际模型代码 + 类型 → 能力预设代码；用于同一上游代码跨图片/视频复用的场景。 */
+    /**
+     * 实际模型代码 + 类型 → 能力预设代码；用于同一上游代码跨图片/视频复用的场景。
+     */
     private final Map<String, String> presetCodesByModelKey = new LinkedHashMap<>();
 
     @PostConstruct
@@ -79,7 +84,7 @@ public class ModelPresetService {
                     presets.put(code, obj);
                     String modelCode = StrUtil.blankToDefault(obj.getStr("modelCode"), code);
                     Integer modelType = obj.getInt("modelType");
-                    if (modelType != null && StrUtil.isNotBlank(modelCode)) {
+                    if (modelType != null && StrUtil.isNotBlank(modelCode) && StrUtil.isBlank(obj.getStr("providerId"))) {
                         presetCodesByModelKey.put(modelKey(modelCode, modelType), code);
                     }
                 }
@@ -127,7 +132,47 @@ public class ModelPresetService {
         if (directPreset != null && modelType.equals(directPreset.getInt("modelType"))) {
             return modelCode;
         }
+        if (modelType == 2) {
+            String imagePreset = GptImageModel.presetCode(modelCode);
+            if (imagePreset != null) {
+                return imagePreset;
+            }
+        }
         return presetCodesByModelKey.get(modelKey(modelCode, modelType));
+    }
+
+    /** 同名渠道模型使用自己的预设；官方 Google 预设只按完整模型标识匹配。 */
+    public String findPresetCode(String modelCode, Integer modelType, String platform) {
+        if (StrUtil.isBlank(modelCode) || modelType == null) {
+            return null;
+        }
+        var scoped = presets.values().stream()
+                .filter(preset -> modelType.equals(preset.getInt("modelType"))
+                        && modelCode.equals(preset.getStr("modelCode", preset.getStr("code")))
+                        && preset.getJSONArray("matchPlatforms") != null
+                        && preset.getJSONArray("matchPlatforms").contains(platform))
+                .map(preset -> preset.getStr("code")).toList();
+        if (scoped.size() > 1) {
+            throw new IllegalStateException("同一渠道的模型预设重复: " + modelCode);
+        }
+        if (!scoped.isEmpty()) {
+            return scoped.getFirst();
+        }
+        String candidate = findPresetCode(modelCode, modelType);
+        if (candidate != null && presets.get(candidate).getJSONArray("matchPlatforms") != null) {
+            return null;
+        }
+        return candidate;
+    }
+
+    /** 提供商预设只按显式绑定匹配，不继承同名原厂模型的协议能力。 */
+    public String findProviderPresetCode(String providerId, String modelCode, int modelType) {
+        return presets.values().stream()
+                .filter(preset -> providerId.equals(preset.getStr("providerId"))
+                        && modelCode.equals(preset.getStr("modelCode"))
+                        && Integer.valueOf(modelType).equals(preset.getInt("modelType")))
+                .map(preset -> preset.getStr("code"))
+                .findFirst().orElse(null);
     }
 
     /**

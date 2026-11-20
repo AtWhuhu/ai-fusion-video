@@ -41,6 +41,33 @@ const TOOL_ARGUMENT_LABELS: Readonly<Record<string, string>> = {
   episode_version: "分集版本",
   episodeId: "分集 ID",
   episodeNumber: "集数",
+  expectedVersion: "预期版本",
+  expectedParentVersion: "上级对象版本",
+  expectedRevision: "画布或任务版本",
+  expectedConfigVersion: "节点内容版本",
+  expectedLayoutVersion: "节点布局版本",
+  canvasId: "画布编号",
+  canvasRunId: "画布运行编号",
+  contractId: "MCP 操作编号",
+  contractVersion: "MCP 操作版本",
+  argumentsJson: "工具参数",
+  inputMode: "输入方式",
+  inputParameter: "接收文本的参数",
+  nodeId: "节点编号",
+  nodeIds: "节点列表",
+  nodeRunId: "节点运行编号",
+  targetNodeId: "目标节点",
+  outputId: "结果编号",
+  operations: "画布修改",
+  binding: "写入字段",
+  planId: "运行计划编号",
+  planHash: "运行计划校验值",
+  budget: "运行上限",
+  maxNodes: "最多执行次数",
+  maxImages: "最多生成图片",
+  maxVideoSeconds: "最多生成视频秒数",
+  maxParallel: "同时执行数量",
+  maxBatchItems: "批量条目上限",
   firstFrameImageUrl: "首帧图片",
   focalLength: "焦距",
   framePrompt: "画面提示词",
@@ -141,6 +168,14 @@ interface ToolArgumentLabelContext {
   toolName?: string;
 }
 
+const TEXT_READ_ARGUMENT_LABELS: Readonly<Record<string, string>> = {
+  contentVersion: "内容版本",
+  field: "读取内容",
+  offset: "开始位置",
+  limit: "本次读取上限",
+  resultId: "结果编号",
+};
+
 const ARGUMENT_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   action: {
     add: "新增",
@@ -210,6 +245,9 @@ const ARGUMENT_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, str
 const TOOL_ARGUMENT_VALUE_LABELS: Readonly<
   Record<string, Readonly<Record<string, Readonly<Record<string, string>>>>>
 > = {
+  read_script_content: {
+    field: { rawContent: "原文", content: "剧本正文" },
+  },
   save_project: {
     status: {
       0: "筹备中",
@@ -249,6 +287,10 @@ export function getToolArgumentLabel(
   key: string,
   context: ToolArgumentLabelContext = {},
 ): string {
+  if ((context.toolName === "read_script_content" || context.toolName === "read_tool_result")
+    && TEXT_READ_ARGUMENT_LABELS[key]) {
+    return TEXT_READ_ARGUMENT_LABELS[key];
+  }
   if (key === "resourceType" && context.toolName?.startsWith("delete_")) {
     return "删除对象";
   }
@@ -280,6 +322,14 @@ export function getToolArgumentValueLabel(
   toolName?: string,
 ): string | undefined {
   const normalizedValue = String(value);
+  if ((toolName === "read_script_content" || toolName === "read_tool_result") && typeof value === "number") {
+    if (key === "offset") {
+      return `第 ${(value + 1).toLocaleString("zh-CN")} 字起`;
+    }
+    if (key === "limit") {
+      return `${value.toLocaleString("zh-CN")} 字`;
+    }
+  }
   if (key === "resourceType") {
     const resourceLabel = getToolResourceLabel(toolName, normalizedValue);
     if (resourceLabel) return resourceLabel;

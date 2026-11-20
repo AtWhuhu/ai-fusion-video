@@ -97,6 +97,8 @@ export function SceneBlockingEditor({
       if (existing) {
         await assetApi.updateItem({
           id: existing.id,
+          version: existing.version,
+          assetVersion: asset.version,
           itemType: SCENE_TOPDOWN_ITEM_TYPE,
           name: SCENE_TOPDOWN_ITEM_NAME,
           imageUrl,
@@ -104,6 +106,7 @@ export function SceneBlockingEditor({
       } else {
         await assetApi.createItem({
           assetId: asset.id,
+          parentVersion: asset.version,
           itemType: SCENE_TOPDOWN_ITEM_TYPE,
           name: SCENE_TOPDOWN_ITEM_NAME,
           imageUrl,

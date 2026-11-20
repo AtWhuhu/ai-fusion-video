@@ -24,20 +24,30 @@ import {
 } from "./scripts";
 import { GenericResult } from "./shared";
 import { StoryboardResult } from "./storyboard";
+import { CanvasToolResult } from "./canvas";
+import { isCanvasTool } from "@/lib/canvas/tool-presentation";
+import { userFacingError } from "@/lib/user-facing-error";
+import { SavedTextResult, TextReadResult } from "../../shared/text-read-result";
+import { savedTextResult } from "../../shared/text-read-result-model";
+import { GenerationTaskResult } from "../../shared/generation-task-result";
 
 export function ToolResultDisplay({
   toolName,
   content,
   expanded = false,
+  failed = false,
 }: {
   toolName: string;
   content: string;
   expanded?: boolean;
+  failed?: boolean;
 }) {
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
+    if (failed) return <p className="text-sm text-destructive">{userFacingError(content)}</p>;
+    if (isCanvasTool(toolName)) return <p className="text-sm text-muted-foreground">这一步未返回可显示的结果，请查看助手的后续说明。</p>;
     const isLong = content.length > 300;
     return (
       <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed">
@@ -49,13 +59,13 @@ export function ToolResultDisplay({
   if (
     typeof parsed === "object" &&
     parsed !== null &&
-    (parsed as Record<string, unknown>).status === "error"
+    (failed || (parsed as Record<string, unknown>).status === "error")
   ) {
     const message = (parsed as Record<string, unknown>).message;
     return (
       <p className="text-xs text-destructive inline-flex items-center gap-1">
         <XCircle className="h-3.5 w-3.5 shrink-0" />
-        {typeof message === "string" ? message : "操作失败"}
+        {userFacingError(typeof message === "string" ? message : null)}
       </p>
     );
   }
@@ -68,7 +78,19 @@ export function ToolResultDisplay({
     );
   }
 
+  const savedChars = savedTextResult(parsed);
+  if (savedChars !== null) {
+    return <SavedTextResult totalChars={savedChars} />;
+  }
+  if (isCanvasTool(toolName)) return <CanvasToolResult toolName={toolName} data={parsed} />;
+
   switch (toolName) {
+    case "get_generation_task":
+    case "await_generation_task":
+      return <GenerationTaskResult data={parsed} />;
+    case "read_script_content":
+    case "read_tool_result":
+      return <TextReadResult data={parsed} toolName={toolName} />;
     case "get_generation_model_capabilities":
       return <GenerationModelCapabilitiesResult data={parsed} />;
     case "generate_image":
@@ -82,6 +104,7 @@ export function ToolResultDisplay({
     case "batch_create_assets":
       return <BatchCreateResult data={parsed} />;
     case "get_project_script":
+    case "get_script":
       return <ScriptInfoResult data={parsed} />;
     case "get_script_structure":
       return <ScriptStructureResult data={parsed} />;
@@ -130,7 +153,6 @@ export function ToolResultDisplay({
           expanded={expanded}
         />
       );
-    case "get_script":
     case "get_asset":
     case "list_my_projects":
     default:

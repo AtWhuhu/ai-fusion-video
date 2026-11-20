@@ -1,5 +1,7 @@
 "use client";
 
+import { useCommandRequestKey } from "@/hooks/use-command-request-key";
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useStoryboardInvalidation } from "../_hooks/use-storyboard-invalidation";
 import { toastApiError } from "@/lib/api/toast-api-error";
@@ -75,9 +77,10 @@ function SortableSceneItem({
   return (
     <div
       ref={setNodeRef}
+      data-sidebar-row
       style={style}
       className={cn(
-        "group/scene flex items-center mb-0.5 rounded-md transition-colors overflow-hidden",
+        "group/scene flex items-center mb-0.5 rounded-md overflow-hidden",
         isDragging && "opacity-50 z-10",
         isActive ? "bg-primary/10" : "hover:bg-primary/5"
       )}
@@ -130,6 +133,7 @@ interface SidebarSelection {
 interface StoryboardSidebarProps {
   projectId: number;
   storyboardId: number;
+  storyboardVersion: number;
   selection: SidebarSelection;
   activeSceneId?: number | null;
   /** 是否以桌面端窄栏形态收起目录 */
@@ -141,15 +145,16 @@ interface StoryboardSidebarProps {
   isRefreshing?: boolean;
   /** 初始加载完成时调用，传递第一集 episodeId（避免通过 onSelect 触发 page 的重复加载） */
   onInitialLoad?: (firstEpisodeId: number) => void;
-  onDeleteEpisode?: (id: number) => Promise<boolean | void> | boolean | void;
-  onDeleteScene?: (sceneId: number, episodeId: number) => Promise<boolean | void> | boolean | void;
-  onReorderScenes?: (episodeId: number, sortedScenes: StoryboardScene[]) => Promise<void>;
+  onDeleteEpisode?: (episode: StoryboardEpisode) => Promise<boolean | void> | boolean | void;
+  onDeleteScene?: (scene: StoryboardScene) => Promise<boolean | void> | boolean | void;
+  onReorderScenes?: (episode: StoryboardEpisode, sortedScenes: StoryboardScene[]) => Promise<void>;
   scriptEpisodes?: ScriptEpisode[];
-  onBindScriptEpisode?: (storyboardEpisodeId: number, scriptEpisodeId: number) => Promise<StoryboardEpisode>;
+  onBindScriptEpisode?: (episode: StoryboardEpisode, scriptEpisodeId: number) => Promise<StoryboardEpisode>;
   onGenerateEpisodeStoryboard?: (episode: StoryboardEpisode) => Promise<void> | void;
 }
 
 export function StoryboardSidebar(props: StoryboardSidebarProps) {
+  const requests = useCommandRequestKey();
   const {
     projectId,
     storyboardId,
@@ -202,7 +207,9 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
       sorted.splice(newIndex, 0, moved);
       setScenesMap((prev) => ({ ...prev, [episodeId]: sorted }));
       
-      props.onReorderScenes(episodeId, sorted).catch((error) => {
+      const episode = episodes.find(item => item.id === episodeId);
+      if (!episode) return;
+      props.onReorderScenes(episode, sorted).then(() => loadEpisodes()).catch((error) => {
         toastApiError(error, "更新场次排序失败");
         setScenesMap((prev) => ({ ...prev, [episodeId]: prevScenes }));
       });
@@ -247,7 +254,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
 
   useEffect(() => {
     loadEpisodes();
-  }, [loadEpisodes]);
+  }, [loadEpisodes, props.storyboardVersion]);
 
   useStoryboardInvalidation(projectId, loadEpisodes);
 
@@ -278,15 +285,13 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
   // 添加分镜集
   const handleAddEpisode = async () => {
     try {
-      const ep = await storyboardApi.createEpisode({
-        storyboardId,
-        episodeNumber: episodes.length + 1,
-        title: `第 ${episodes.length + 1} 集`,
-        sortOrder: episodes.length,
-      });
-      setEpisodes([...episodes, ep]);
+      const number = Math.max(0, ...episodes.map(episode => episode.episodeNumber ?? 0)) + 1;
+      const payload = { storyboardId, parentVersion: props.storyboardVersion, episodeNumber: number, title: `第 ${number} 集`, sortOrder: episodes.length };
+      const ep = await storyboardApi.createEpisode(payload, requests.forPayload(payload));
+      requests.clear();
+      await onRefresh?.();
+      await loadEpisodes();
       setExpandedEpisodes((prev) => new Set(prev).add(ep.id));
-      setScenesMap((prev) => ({ ...prev, [ep.id]: [] }));
       onSelect({ type: "episode", episodeId: ep.id });
     } catch (err) {
       console.error("创建分镜集失败:", err);
@@ -296,18 +301,14 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
 
   // 添加分镜场次
   const handleAddScene = async (episodeId: number) => {
-    const existingScenes = scenesMap[episodeId] || [];
+    const episode = episodes.find(item => item.id === episodeId);
+    if (!episode) return;
     try {
-      const scene = await storyboardApi.createScene({
-        episodeId,
-        storyboardId,
-        sceneNumber: String(existingScenes.length + 1),
-        sortOrder: existingScenes.length,
-      });
-      setScenesMap((prev) => ({
-        ...prev,
-        [episodeId]: [...(prev[episodeId] || []), scene],
-      }));
+      const payload = { episodeId, parentVersion: episode.version };
+      const scene = await storyboardApi.createScene(payload, requests.forPayload(payload));
+      requests.clear();
+      await onRefresh?.();
+      await loadEpisodes();
       onSelect({ type: "scene", episodeId, sceneId: scene.id });
     } catch (err) {
       console.error("创建场次失败:", err);
@@ -320,9 +321,11 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
     const scriptEpisodeId = Number(value);
     if (!Number.isFinite(scriptEpisodeId)) return;
 
+    const episode = episodes.find(item => item.id === storyboardEpisodeId);
+    if (!episode) return;
     setBindingEpisodeIds((prev) => new Set(prev).add(storyboardEpisodeId));
     try {
-      const updated = await onBindScriptEpisode(storyboardEpisodeId, scriptEpisodeId);
+      const updated = await onBindScriptEpisode(episode, scriptEpisodeId);
       setEpisodes((prev) =>
         prev.map((episode) => (episode.id === updated.id ? updated : episode))
       );
@@ -340,7 +343,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
 
   if (collapsed) {
     return (
-      <div className="w-12 border-r border-border/20 flex flex-col shrink-0 bg-card/20 h-full transition-[width] duration-200">
+      <div data-sidebar-navigation="storyboards" className="w-12 border-r border-border/20 flex flex-col shrink-0 bg-card/20 h-full transition-[width] duration-200">
         <div className="px-2 py-3 border-b border-primary/8 flex flex-col items-center gap-2">
           <button
             type="button"
@@ -357,7 +360,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
   }
 
   return (
-    <div className="w-full lg:w-64 border-r border-border/20 flex flex-col shrink-0 bg-card/20 h-full transition-[width] duration-200">
+    <div data-sidebar-navigation="storyboards" className="w-full lg:w-64 border-r border-border/20 flex flex-col shrink-0 bg-card/20 h-full transition-[width] duration-200">
       {/* 标题栏 */}
       <div className="px-4 py-3 border-b border-primary/8 flex items-center justify-between">
         <h3 className="text-xs font-semibold text-primary/80 uppercase tracking-wider">
@@ -429,8 +432,8 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
               return (
                 <div key={ep.id} className="group/ep mb-0.5">
                   {/* 集标题行 */}
-                  <div className={cn(
-                    "flex items-center rounded-lg transition-colors",
+                  <div data-sidebar-row className={cn(
+                    "flex items-center rounded-lg",
                     isEpisodeSelected ? "bg-primary/8" : "hover:bg-primary/5"
                   )}>
                     <button
@@ -485,7 +488,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
                       onClick={async (e) => {
                         e.stopPropagation();
                         if (onDeleteEpisode) {
-                          const success = await onDeleteEpisode(ep.id);
+                          const success = await onDeleteEpisode(ep);
                           if (success) {
                             setEpisodes((prev) => prev.filter((o) => o.id !== ep.id));
                             setScenesMap((prev) => {
@@ -601,7 +604,7 @@ export function StoryboardSidebar(props: StoryboardSidebarProps) {
                                     onDelete={async (e) => {
                                       e.stopPropagation();
                                       if (onDeleteScene) {
-                                        const success = await onDeleteScene(scene.id, ep.id);
+                                        const success = await onDeleteScene(scene);
                                         if (success) {
                                           setScenesMap((prev) => ({
                                             ...prev,

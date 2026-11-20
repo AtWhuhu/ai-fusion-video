@@ -7,18 +7,11 @@ import cn.hutool.json.JSONUtil;
 import com.stonewu.fusion.common.BusinessException;
 import com.stonewu.fusion.entity.ai.AiModel;
 import com.stonewu.fusion.entity.ai.ApiConfig;
-import com.stonewu.fusion.enums.ai.AiModelTypeEnum;
 import com.stonewu.fusion.entity.generation.ImageTask;
 import com.stonewu.fusion.entity.generation.VideoTask;
+import com.stonewu.fusion.enums.ai.AiModelTypeEnum;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,7 +24,8 @@ public final class GoogleFlowReverseApiSupport {
     public static final String DEFAULT_BASE_URL = "http://localhost:8000";
 
     private static final Pattern MARKDOWN_IMAGE_PATTERN = Pattern.compile("!\\[[^\\]]*]\\((.*?)\\)");
-    private static final Pattern HTML_VIDEO_PATTERN = Pattern.compile("<video[^>]+src=['\"](.*?)['\"]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern HTML_VIDEO_PATTERN = Pattern.compile("<video[^>]+src=['\"](.*?)['\"]",
+            Pattern.CASE_INSENSITIVE);
     private static final Pattern SIZE_PATTERN = Pattern.compile("(\\d{3,5})\\s*[xX]\\s*(\\d{3,5})");
 
     private static final Set<String> IMAGE_ALIAS_MODELS = Set.of(
@@ -117,20 +111,27 @@ public final class GoogleFlowReverseApiSupport {
 
     private static final Map<String, Map<String, Map<String, String>>> VIDEO_UPSAMPLE_MODELS = Map.ofEntries(
             Map.entry("veo_3_1_t2v_fast", Map.of(
-                    "1080p", Map.of("landscape", "veo_3_1_t2v_fast_1080p", "portrait", "veo_3_1_t2v_fast_portrait_1080p"),
+                    "1080p",
+                    Map.of("landscape", "veo_3_1_t2v_fast_1080p", "portrait", "veo_3_1_t2v_fast_portrait_1080p"),
                     "4k", Map.of("landscape", "veo_3_1_t2v_fast_4k", "portrait", "veo_3_1_t2v_fast_portrait_4k")
             )),
             Map.entry("veo_3_1_t2v_fast_ultra", Map.of(
-                    "1080p", Map.of("landscape", "veo_3_1_t2v_fast_ultra_1080p", "portrait", "veo_3_1_t2v_fast_portrait_ultra_1080p"),
-                    "4k", Map.of("landscape", "veo_3_1_t2v_fast_ultra_4k", "portrait", "veo_3_1_t2v_fast_portrait_ultra_4k")
+                    "1080p", Map.of("landscape", "veo_3_1_t2v_fast_ultra_1080p", "portrait",
+                            "veo_3_1_t2v_fast_portrait_ultra_1080p"),
+                    "4k",
+                    Map.of("landscape", "veo_3_1_t2v_fast_ultra_4k", "portrait", "veo_3_1_t2v_fast_portrait_ultra_4k")
             )),
             Map.entry("veo_3_1_i2v_s_fast_ultra_fl", Map.of(
-                    "1080p", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_fl_1080p", "portrait", "veo_3_1_i2v_s_fast_portrait_ultra_fl_1080p"),
-                    "4k", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_fl_4k", "portrait", "veo_3_1_i2v_s_fast_portrait_ultra_fl_4k")
+                    "1080p", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_fl_1080p", "portrait",
+                            "veo_3_1_i2v_s_fast_portrait_ultra_fl_1080p"),
+                    "4k", Map.of("landscape", "veo_3_1_i2v_s_fast_ultra_fl_4k", "portrait",
+                            "veo_3_1_i2v_s_fast_portrait_ultra_fl_4k")
             )),
             Map.entry("veo_3_1_r2v_fast_ultra", Map.of(
-                    "1080p", Map.of("landscape", "veo_3_1_r2v_fast_ultra_1080p", "portrait", "veo_3_1_r2v_fast_portrait_ultra_1080p"),
-                    "4k", Map.of("landscape", "veo_3_1_r2v_fast_ultra_4k", "portrait", "veo_3_1_r2v_fast_portrait_ultra_4k")
+                    "1080p", Map.of("landscape", "veo_3_1_r2v_fast_ultra_1080p", "portrait",
+                            "veo_3_1_r2v_fast_portrait_ultra_1080p"),
+                    "4k",
+                    Map.of("landscape", "veo_3_1_r2v_fast_ultra_4k", "portrait", "veo_3_1_r2v_fast_portrait_ultra_4k")
             ))
     );
 
@@ -195,7 +196,8 @@ public final class GoogleFlowReverseApiSupport {
         String resolution = resolveImageResolution(task, config);
         validateImageSelection(config, aspectRatio, resolution, modelCode);
 
-        return new ResolvedImageRequest(resolveImageModelCode(modelCode, aspectRatio, resolution), aspectRatio, resolution);
+        return new ResolvedImageRequest(resolveImageModelCode(modelCode, aspectRatio, resolution), aspectRatio,
+                resolution);
     }
 
     public static String resolveImageModelCode(String modelCode, String aspectRatio, String resolution) {
@@ -243,7 +245,8 @@ public final class GoogleFlowReverseApiSupport {
 
         validateVideoSelection(config, aspectRatio, resolution, imageCount, modelCode);
 
-        return new ResolvedVideoRequest(resolveVideoModelCode(modelCode, aspectRatio, resolution), aspectRatio, resolution, imageCount);
+        return new ResolvedVideoRequest(resolveVideoModelCode(modelCode, aspectRatio, resolution), aspectRatio,
+                resolution, imageCount);
     }
 
     public static String resolveVideoModelCode(String modelCode, String aspectRatio, String resolution) {
@@ -334,7 +337,8 @@ public final class GoogleFlowReverseApiSupport {
     }
 
     private static String resolveImageAspectRatio(ImageTask task, JSONObject config) {
-        String explicit = normalizeImageAspectRatio(firstNonBlank(task != null ? task.getAspectRatio() : null, task != null ? task.getRatio() : null));
+        String explicit = normalizeImageAspectRatio(
+                firstNonBlank(task != null ? task.getAspectRatio() : null, task != null ? task.getRatio() : null));
         if (StrUtil.isNotBlank(explicit)) {
             return explicit;
         }
@@ -361,18 +365,21 @@ public final class GoogleFlowReverseApiSupport {
         if (StrUtil.isNotBlank(explicit)) {
             return explicit;
         }
-        String derived = deriveImageResolution(task != null ? task.getWidth() : null, task != null ? task.getHeight() : null);
+        String derived = deriveImageResolution(task != null ? task.getWidth() : null,
+                task != null ? task.getHeight() : null);
         if (StrUtil.isNotBlank(derived)) {
             return derived;
         }
         List<String> supported = getSupportedImageSizes(config);
         if (!supported.isEmpty()) {
-            return supported.stream().min(Comparator.comparingInt(GoogleFlowReverseApiSupport::imageResolutionOrder)).orElse("1K");
+            return supported.stream().min(Comparator.comparingInt(GoogleFlowReverseApiSupport::imageResolutionOrder))
+                    .orElse("1K");
         }
         return "1K";
     }
 
-    private static void validateImageSelection(JSONObject config, String aspectRatio, String resolution, String modelCode) {
+    private static void validateImageSelection(JSONObject config, String aspectRatio, String resolution,
+                                               String modelCode) {
         List<String> supportedAspectRatios = getStringList(config, "supportedAspectRatios");
         if (!supportedAspectRatios.isEmpty() && !supportedAspectRatios.contains(aspectRatio)) {
             throw new BusinessException("模型 " + modelCode + " 不支持比例 " + aspectRatio);
@@ -387,7 +394,8 @@ public final class GoogleFlowReverseApiSupport {
         if (sizeMap != null && sizeMap.containsKey(resolution)) {
             JSONObject resolutionMap = sizeMap.getJSONObject(resolution);
             if (resolutionMap != null && !resolutionMap.isEmpty() && !resolutionMap.containsKey(aspectRatio)) {
-                throw new BusinessException("模型 " + modelCode + " 不支持 " + resolution + " / " + aspectRatio + " 组合");
+                throw new BusinessException(
+                        "模型 " + modelCode + " 不支持 " + resolution + " / " + aspectRatio + " 组合");
             }
         }
     }
@@ -423,7 +431,8 @@ public final class GoogleFlowReverseApiSupport {
         }
 
         List<String> supportedResolutions = getStringList(config, "supportedResolutions");
-        if (StrUtil.isNotBlank(resolution) && !supportedResolutions.isEmpty() && !supportedResolutions.contains(resolution)) {
+        if (StrUtil.isNotBlank(resolution) && !supportedResolutions.isEmpty() && !supportedResolutions.contains(
+                resolution)) {
             throw new BusinessException("模型 " + modelCode + " 不支持分辨率 " + resolution);
         }
 

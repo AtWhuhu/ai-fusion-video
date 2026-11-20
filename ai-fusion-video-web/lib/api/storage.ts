@@ -42,6 +42,11 @@ export interface StorageConfigSaveReq {
   remark?: string;
 }
 
+export interface StorageOverview {
+  configurations: StorageConfig[];
+  builtIn: StorageConfig | null;
+}
+
 export interface StorageConfigOptions {
   pathStyleAccessEnabled?: boolean;
   chunkedEncodingEnabled?: boolean;
@@ -167,6 +172,9 @@ export function renderEndpointTemplate(provider?: string, region?: string) {
 // ============================================================
 
 export const storageConfigApi = {
+  async overview(): Promise<StorageOverview> {
+    return http.get("/api/storage/config/overview");
+  },
   async create(data: StorageConfigSaveReq): Promise<number> {
     return http.post("/api/storage/config/create", data);
   },
@@ -203,6 +211,7 @@ export async function uploadFile(
   const formData = new FormData();
   formData.append("file", file);
   formData.append("subDir", subDir);
+  formData.append("requestId", crypto.randomUUID());
 
   return http.post("/api/storage/upload", formData, { timeout: 0 });
 }
@@ -216,6 +225,7 @@ export async function uploadAssistantInput(
   formData.append("file", file);
   formData.append("modelId", String(modelId));
   formData.append("transport", transport);
+  formData.append("requestId", crypto.randomUUID());
 
   return http.post("/api/storage/assistant-upload", formData, { timeout: 0 });
 }

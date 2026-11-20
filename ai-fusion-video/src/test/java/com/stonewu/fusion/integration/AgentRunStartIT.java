@@ -1,5 +1,6 @@
 package com.stonewu.fusion.integration;
 
+import com.stonewu.fusion.integration.support.AgentRuntimeContainers;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -25,9 +26,11 @@ import com.stonewu.fusion.service.ai.run.model.StartedAgentRun;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -50,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @Testcontainers(disabledWithoutDocker = false)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class AgentRunStartIT {
 
     @Container
@@ -58,11 +62,15 @@ class AgentRunStartIT {
             .withUsername("afv")
             .withPassword("afv-test");
 
+    @Container
+    private static final GenericContainer<?> REDIS = AgentRuntimeContainers.redis();
+
     @DynamicPropertySource
     static void configureDatabase(DynamicPropertyRegistry properties) {
         properties.add("spring.datasource.url", MYSQL::getJdbcUrl);
         properties.add("spring.datasource.username", MYSQL::getUsername);
         properties.add("spring.datasource.password", MYSQL::getPassword);
+        AgentRuntimeContainers.registerRedisProperties(properties, REDIS);
     }
 
     @Autowired
@@ -99,6 +107,7 @@ class AgentRunStartIT {
         assertThat(started.initialMessageOrder()).isEqualTo(1L);
         assertThat(started.deadline()).isEqualTo(deadline.truncatedTo(ChronoUnit.MILLIS));
         AgentRun persisted = run(command.runId());
+        assertThat(persisted.getActorTeamId()).isEqualTo(77L);
         assertThat(persisted.getParentRunId()).isNull();
         assertThat(persisted.getParentToolCallId()).isNull();
         assertThat(persisted.getAgentName()).isNull();
@@ -251,6 +260,7 @@ class AgentRunStartIT {
         assertThat(admitted.created()).isTrue();
         assertThat(admitted.run().initialMessageOrder()).isEqualTo(2L);
         AgentRun persistedChild = run(childCommand.childRunId());
+        assertThat(persistedChild.getActorTeamId()).isEqualTo(77L);
         assertThat(persistedChild.getConversationId()).isEqualTo(conversationId);
         assertThat(persistedChild.getUserId()).isEqualTo(42L);
         assertThat(persistedChild.getProjectId()).isEqualTo(7L);
@@ -398,7 +408,8 @@ class AgentRunStartIT {
                 Duration.ofSeconds(30),
                 deadline,
                 "hello",
-                null);
+                null,
+                77L, null);
     }
 
     private StartChildAgentRunCommand childCommand(

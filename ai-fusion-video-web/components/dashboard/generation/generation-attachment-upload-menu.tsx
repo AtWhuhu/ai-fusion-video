@@ -59,7 +59,7 @@ export function GenerationAttachmentUploadMenu({
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             disabled={disabled}
             title={title}
             aria-label="添加附件"
@@ -110,7 +110,7 @@ export function GenerationAttachmentUploadMenu({
                   >
                     <Icon className="size-4" />
                     <span>{option.label}</span>
-                    {option.remaining > 1 && (
+                    {option.remaining > 1 && Number.isFinite(option.remaining) && (
                       <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
                         可传 {option.remaining}
                       </span>

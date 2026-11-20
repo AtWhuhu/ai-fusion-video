@@ -126,7 +126,7 @@ class EasyColabServiceTests {
 
         assertThat(state.getComfyUiUrl()).isNull();
         assertThat(state.getMessage()).isEqualTo("released");
-        verify(apiConfigService).updateApiConfig(42L, null, null, null, null, null,
+        verify(apiConfigService).updateApiConfig(42L, null, null, null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, 0, null);
     }

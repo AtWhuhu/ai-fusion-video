@@ -1,5 +1,6 @@
 "use client";
 
+import { generationExecutionApi } from "@/lib/api/generation-execution";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Brush, ImagePlus, Loader2, RotateCcw } from "lucide-react";
@@ -200,7 +201,10 @@ export function AssetImageEditDialog({
     setErrorMsg("");
     setResultUrl(null);
     try {
+      const scope = await generationExecutionApi.scope();
       const id = await generationApi.submitImage({
+        requestId: crypto.randomUUID(),
+        scope,
         projectId,
         prompt: finalPrompt,
         refImageUrls: JSON.stringify([sourceImageUrl]),

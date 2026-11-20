@@ -1,21 +1,16 @@
 package com.stonewu.fusion.service.ai.provider;
 
 import cn.hutool.core.util.StrUtil;
-import com.google.genai.Client;
-import com.google.genai.types.Content;
-import com.google.genai.types.GenerateContentConfig;
-import com.google.genai.types.GenerateContentResponse;
-import com.google.genai.types.Part;
-import com.google.genai.types.ThinkingConfig;
+import cn.hutool.json.JSONUtil;
 import com.stonewu.fusion.common.BusinessException;
+import okhttp3.HttpUrl;
+import com.google.genai.Client;
+import com.google.genai.GenerationHttpApiClient;
+import com.google.genai.types.*;
 import com.stonewu.fusion.controller.ai.vo.RemoteModelVO;
 import com.stonewu.fusion.service.ai.proxy.AiProxySupport;
 import io.agentscope.core.formatter.Formatter;
-import io.agentscope.core.message.ContentBlock;
-import io.agentscope.core.message.Msg;
-import io.agentscope.core.message.MsgRole;
-import io.agentscope.core.message.ToolResultBlock;
-import io.agentscope.core.message.ToolUseBlock;
+import io.agentscope.core.message.*;
 import io.agentscope.core.model.ChatModelBase;
 import io.agentscope.core.model.GenerateOptions;
 import io.agentscope.core.model.ToolChoice;
@@ -29,11 +24,7 @@ import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Gemini Developer API 提供商。
@@ -60,6 +51,7 @@ public class GeminiAiProvider extends AbstractAiProvider {
 
         Client genAiClient = Client.builder()
                 .apiKey(context.getApiKey())
+                .httpOptions(httpOptions(context))
                 .build();
 
         return GoogleGenAiChatModel.builder()
@@ -73,11 +65,18 @@ public class GeminiAiProvider extends AbstractAiProvider {
         requireApiKey(context.getApiKey(), "Gemini");
         GenerateOptions defaultOptions = buildGeminiGenerateOptions(context);
 
+        if (context.isSingleRequest()) {
+            return new SingleRequestGeminiModel(
+                    new GenerationHttpApiClient(context.getApiKey(), httpOptions(context), context.getApiConfig()),
+                    context.getModelName(), defaultOptions);
+        }
+
         GeminiChatModel.Builder builder = GeminiChatModel.builder()
                 .apiKey(context.getApiKey())
                 .modelName(context.getModelName())
                 .formatter(agentScopeFormatter())
                 .streamEnabled(true)
+                .httpOptions(httpOptions(context))
                 .vertexAI(false);
 
         if (defaultOptions != null) {
@@ -89,6 +88,17 @@ public class GeminiAiProvider extends AbstractAiProvider {
         }
 
         return builder.build();
+    }
+
+    private HttpOptions httpOptions(AiProviderContext context) {
+        var options = HttpOptions.builder();
+        if (StrUtil.isNotBlank(context.getBaseUrl())) {
+            options.baseUrl(context.getBaseUrl().replaceAll("/v1(?:beta)?/?$", ""));
+        }
+        if (GatewayAuthentication.bearer(context.getConfig())) {
+            options.headers(Map.of("Authorization", "Bearer " + context.getApiKey()));
+        }
+        return options.build();
     }
 
     static Formatter<Content, GenerateContentResponse, GenerateContentConfig.Builder> agentScopeFormatter() {
@@ -106,7 +116,8 @@ public class GeminiAiProvider extends AbstractAiProvider {
         }
 
         @Override
-        public io.agentscope.core.model.ChatResponse parseResponse(GenerateContentResponse response, Instant startTime) {
+        public io.agentscope.core.model.ChatResponse parseResponse(GenerateContentResponse response,
+                                                                   Instant startTime) {
             return delegate.parseResponse(response, startTime);
         }
 
@@ -118,7 +129,7 @@ public class GeminiAiProvider extends AbstractAiProvider {
             if (merged != null && StrUtil.isNotBlank(merged.getReasoningEffort())) {
                 builder.thinkingConfig(ThinkingConfig.builder()
                         .includeThoughts(true)
-                        .thinkingLevel(merged.getReasoningEffort().trim())
+                        .thinkingLevel(merged.getReasoningEffort().trim().toUpperCase(Locale.ROOT))
                         .build());
             }
         }
@@ -163,7 +174,7 @@ public class GeminiAiProvider extends AbstractAiProvider {
                 }
                 List<ToolResultBlock> orderedResults = new ArrayList<>(remainingResults.size());
                 for (ToolUseBlock toolUse : toolUses) {
-                    for (int resultIndex = 0; resultIndex < remainingResults.size();) {
+                    for (int resultIndex = 0; resultIndex < remainingResults.size(); ) {
                         ToolResultBlock result = remainingResults.get(resultIndex);
                         if (Objects.equals(toolUse.getId(), result.getId())) {
                             orderedResults.add(result);
@@ -224,11 +235,24 @@ public class GeminiAiProvider extends AbstractAiProvider {
     public List<RemoteModelVO> listRemoteModels(AiProviderContext context) {
         requireApiKey(context.getApiKey(), "Gemini");
         String apiBaseUrl = resolveGeminiApiBaseUrl(context.getBaseUrl());
-        String url = joinUrl(apiBaseUrl, "/v1beta/models?pageSize=1000");
-        log.info("[GeminiAiProvider] 获取 Gemini 远程模型列表: {}", url);
-
-        String response = executeGet(url, Map.of("x-goog-api-key", context.getApiKey()), context.getApiConfig());
-        return parseGeminiModels(response);
+        var result = new LinkedHashMap<String, RemoteModelVO>();
+        var tokens = new HashSet<String>();
+        String pageToken = null;
+        do {
+            var url = HttpUrl.get(joinUrl(apiBaseUrl, "/v1beta/models")).newBuilder().addQueryParameter("pageSize", "1000");
+            if (pageToken != null) {
+                url.addQueryParameter("pageToken", pageToken);
+            }
+            String response = executeGet(url.build().toString(), Map.of("x-goog-api-key", context.getApiKey()), context.getApiConfig());
+            for (var model : parseGeminiModels(response)) {
+                result.putIfAbsent(model.getId(), model);
+            }
+            pageToken = JSONUtil.parseObj(response).getStr("nextPageToken");
+            if (StrUtil.isNotBlank(pageToken) && !tokens.add(pageToken)) {
+                throw new BusinessException("模型目录分页未能完成，请重试");
+            }
+        } while (StrUtil.isNotBlank(pageToken));
+        return result.values().stream().sorted(Comparator.comparing(RemoteModelVO::getId)).toList();
     }
 
     private String resolveGeminiApiBaseUrl(String baseUrl) {

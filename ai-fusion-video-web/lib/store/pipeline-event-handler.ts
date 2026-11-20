@@ -1,3 +1,4 @@
+import { applyModelRetry } from "@/lib/store/model-retry-timeline";
 import type { AiChatStreamEvent } from "@/lib/api/ai-pipeline";
 import type { AiChatStreamEvent as GenericStreamEvent } from "@/lib/api/ai-assistant";
 import {
@@ -8,7 +9,6 @@ import {
   type ToolTimelineStatus,
 } from "@/lib/store/pipeline-timeline";
 import type {
-  InvalidationType,
   PipelineTask,
   PipelineState,
   PipelineStoreState,
@@ -23,42 +23,6 @@ export interface PipelineEventLifecycle {
   ) => void;
   scheduleStatusSync: () => void;
 }
-
-export const TOOL_INVALIDATION_MAP: Record<string, InvalidationType> = {
-  // assets 相关的工具
-  create_asset: "assets",
-  add_asset_item: "assets",
-  update_asset: "assets",
-  update_asset_item: "assets",
-  batch_create_assets: "assets",
-  batch_create_asset_items: "assets",
-  delete_asset_resource: "assets",
-  update_asset_image: "assets",
-  generate_image: "assets",
-
-  // scripts 相关的工具
-  save_script_episode: "scripts",
-  save_script_scene_items: "scripts",
-  update_script: "scripts",
-  update_script_info: "scripts",
-  manage_script_scenes: "scripts",
-  update_script_scene: "scripts",
-  update_script_scene_item: "scripts",
-  manage_script_scene_items: "scripts",
-  delete_script_child_resource: "scripts",
-
-  // storyboards 相关的工具
-  save_storyboard_episode: "storyboards",
-  save_storyboard_scene_shots: "storyboards",
-  insert_storyboard_item: "storyboards",
-  update_storyboard_item: "storyboards",
-  update_storyboard_item_video: "storyboards",
-  update_storyboard_item_frame: "storyboards",
-  update_storyboard_scene: "storyboards",
-  delete_storyboard_child_resource: "storyboards",
-  generate_video: "storyboards",
-  script_to_storyboard: "storyboards",
-};
 
 function isMainAgentTerminalEvent(event: GenericStreamEvent): boolean {
   return !event.parentToolCallId && !event.agentName && (
@@ -161,10 +125,11 @@ function updateToolStatus(
 function appendReasoningToSubTimeline(
   children: SubTimelineItem[],
   reasoningContent: string,
-  startedAtMs?: number
+  startedAtMs?: number,
+  replyId?: string
 ): SubTimelineItem[] {
   const last = children[children.length - 1];
-  if (last && last.type === "reasoning") {
+  if (last && last.type === "reasoning" && last.replyId === replyId) {
     return [
       ...children.slice(0, -1),
       {
@@ -179,6 +144,7 @@ function appendReasoningToSubTimeline(
     {
       type: "reasoning",
       text: reasoningContent,
+      replyId,
       ...(startedAtMs !== undefined ? { startedAtMs } : {}),
     },
   ];
@@ -204,10 +170,11 @@ function updateLastSubTimelineReasoningDuration(
 function appendReasoningToTimeline(
   timeline: TimelineItem[],
   reasoningContent: string,
-  startedAtMs?: number
+  startedAtMs?: number,
+  replyId?: string
 ): TimelineItem[] {
   const last = timeline[timeline.length - 1];
-  if (last && last.type === "reasoning") {
+  if (last && last.type === "reasoning" && last.replyId === replyId) {
     return [
       ...timeline.slice(0, -1),
       {
@@ -222,6 +189,7 @@ function appendReasoningToTimeline(
     {
       type: "reasoning",
       text: reasoningContent,
+      replyId,
       ...(startedAtMs !== undefined ? { startedAtMs } : {}),
     },
   ];
@@ -265,16 +233,6 @@ export function createPipelineEventHandler(
     rafScheduled = false;
     const batch = eventQueue.splice(0);
     if (batch.length === 0) return;
-
-    // 收集本批次需要触发的 invalidation 类型
-    const invalidations: InvalidationType[] = [];
-    let hasTerminalEvent = false;
-    for (const event of batch) {
-      if (isMainAgentTerminalEvent(event)) {
-        hasTerminalEvent = true;
-      }
-    }
-
 
     set((s) => {
       const tasks = s.tasks.map((t) => {
@@ -330,6 +288,15 @@ export function createPipelineEventHandler(
           }
 
           switch (event.outputType) {
+            case "MODEL_RETRY":
+              next.timeline = applyModelRetry(next.timeline, event);
+              if (!isSubAgent) {
+                next.reasoningText = "";
+                next.reasoningStartTime = undefined;
+                next.reasoningDurationMs = undefined;
+              }
+              break;
+
             case "REASONING":
               if (event.reasoningContent) {
                 const reasoningStartTime = validTimestamp(
@@ -343,7 +310,8 @@ export function createPipelineEventHandler(
                       appendReasoningToSubTimeline(
                         children,
                         event.reasoningContent!,
-                        reasoningStartTime
+                        reasoningStartTime,
+                        event.replyId
                       )
                   );
                 } else {
@@ -359,7 +327,8 @@ export function createPipelineEventHandler(
                   next.timeline = appendReasoningToTimeline(
                     next.timeline,
                     event.reasoningContent,
-                    reasoningStartTime
+                    reasoningStartTime,
+                    event.replyId
                   );
                 }
               }
@@ -378,7 +347,7 @@ export function createPipelineEventHandler(
 
                       const last =
                         updatedChildren[updatedChildren.length - 1];
-                      if (last && last.type === "content") {
+                      if (last && last.type === "content" && last.replyId === event.replyId) {
                         return [
                           ...updatedChildren.slice(0, -1),
                           {
@@ -393,7 +362,7 @@ export function createPipelineEventHandler(
                       }
                       return [
                         ...updatedChildren,
-                        { type: "content" as const, text: content },
+                        { type: "content" as const, text: content, replyId: event.replyId },
                       ];
                     }
                   );
@@ -402,6 +371,7 @@ export function createPipelineEventHandler(
                   if (
                     last &&
                     last.type === "content" &&
+                    last.replyId === event.replyId &&
                     !next.separateNextRootContent
                   ) {
                     next.timeline[next.timeline.length - 1] = {
@@ -416,6 +386,7 @@ export function createPipelineEventHandler(
                     next.timeline.push({
                       type: "content",
                       text: content,
+                      replyId: event.replyId,
                     });
                   }
                   next.separateNextRootContent = false;
@@ -592,14 +563,6 @@ export function createPipelineEventHandler(
                   }
                 }
               }
-              // 收集 invalidation
-              if (
-                event.toolName &&
-                event.toolStatus !== "error" &&
-                TOOL_INVALIDATION_MAP[event.toolName]
-              ) {
-                invalidations.push(TOOL_INVALIDATION_MAP[event.toolName]);
-              }
               break;
 
             case "SUB_AGENT_FINISHED":
@@ -700,18 +663,7 @@ export function createPipelineEventHandler(
         };
       });
 
-      // 合并 invalidation 到同一次 set
-      const newInvalidation = { ...s.invalidation };
-      if (hasTerminalEvent) {
-        newInvalidation.assets = (newInvalidation.assets || 0) + 1;
-        newInvalidation.scripts = (newInvalidation.scripts || 0) + 1;
-        newInvalidation.storyboards = (newInvalidation.storyboards || 0) + 1;
-      }
-      for (const inv of invalidations) {
-        newInvalidation[inv] = (newInvalidation[inv] || 0) + 1;
-      }
-
-      return { tasks, invalidation: newInvalidation };
+      return { tasks };
     });
 
     // 完成/错误/取消时触发后续回调

@@ -1,12 +1,14 @@
 package com.stonewu.fusion.service.ai.agentscope.kernel;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.stonewu.fusion.config.AgentScopeV2Properties;
 import com.stonewu.fusion.config.ai.AiAgentDefinition;
 import com.stonewu.fusion.config.ai.AiAgentRegistry;
 import com.stonewu.fusion.controller.ai.vo.AiChatReqVO;
 import com.stonewu.fusion.entity.ai.AiModel;
 import com.stonewu.fusion.service.ai.AiAgentService;
+import com.stonewu.fusion.service.ai.configuration.AgentConfigurationTestSupport;
 import com.stonewu.fusion.service.ai.AiToolConfigService;
 import com.stonewu.fusion.service.ai.ToolExecutor;
 import com.stonewu.fusion.service.ai.agentscope.AgentScopeModelFactory;
@@ -14,6 +16,9 @@ import com.stonewu.fusion.service.ai.agentscope.context.ProjectContext;
 import com.stonewu.fusion.service.ai.agentscope.mcp.AgentScopeMcpRegistry;
 import com.stonewu.fusion.service.ai.agentscope.permission.ToolExecutionMode;
 import com.stonewu.fusion.service.ai.run.kernel.CanonicalAgentKernelSnapshotBuilder;
+import com.stonewu.fusion.service.ai.run.kernel.AgentKernelSnapshotPayload;
+import com.stonewu.fusion.service.canvas.agent.CanvasGenerationAwaitTool;
+import com.stonewu.fusion.service.canvas.CanvasJson;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -39,7 +44,7 @@ class AgentKernelSpecFactoryTests {
     @BeforeEach
     void setUp() {
         registry = new AiAgentRegistry();
-        AiAgentService agents = new AiAgentService(registry);
+        AiAgentService agents = AgentConfigurationTestSupport.agents(registry);
         AiToolConfigService tools = new AiToolConfigService(List.of(), registry);
         AgentScopeModelFactory models = mock(AgentScopeModelFactory.class);
         model = AiModel.builder()
@@ -59,7 +64,7 @@ class AgentKernelSpecFactoryTests {
                 models,
                 new AgentScopeV2Properties(),
                 new ObjectMapper(),
-                mcp);
+                mcp, AgentConfigurationTestSupport.skills(agents));
     }
 
     @Test
@@ -75,10 +80,13 @@ class AgentKernelSpecFactoryTests {
         AgentKernelSpec spec = factory.createRoot(
                 request(), model, "root prompt");
 
-        assertThat(spec.toolWhitelist()).containsExactly("search_assets");
-        assertThat(spec.toolManifest()).containsExactly(manifest);
-        assertThat(spec.key().toolManifestFingerprint())
-                .isEqualTo(AgentKernelKey.manifestFingerprint(List.of(manifest)));
+        assertThat(spec.toolWhitelist()).containsExactlyInAnyOrder("search_assets", "read_tool_result");
+        assertThat(spec.toolManifest()).contains(manifest).hasSize(2);
+        assertThat(spec.toolManifest()).filteredOn(item -> item.toolName().equals("read_tool_result"))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.readOnly()).isTrue();
+                    assertThat(item.concurrencySafe()).isTrue();
+                });
     }
 
     @Test
@@ -99,8 +107,27 @@ class AgentKernelSpecFactoryTests {
                 request(), model, "root prompt", 43L);
 
         assertThat(AgentKernelSpecFactory.ownerUserId(first)).isEqualTo(42L);
-        assertThat(first.toolWhitelist()).containsExactly("private_search");
+        assertThat(first.toolWhitelist()).containsExactlyInAnyOrder("private_search", "read_tool_result");
         assertThat(first.key()).isNotEqualTo(second.key());
+    }
+
+    @Test
+    void selectingAScriptQueryAutomaticallyIncludesItsContentReaders() {
+        ToolExecutor query = mock(ToolExecutor.class);
+        when(query.getToolName()).thenReturn("get_script");
+        when(query.isEnabled()).thenReturn(true);
+        when(query.isReadOnly()).thenReturn(true);
+        when(query.getParametersSchema()).thenReturn("{\"type\":\"object\",\"properties\":{}}");
+        var models = mock(AgentScopeModelFactory.class);
+        when(models.modelConfigFingerprint(model)).thenReturn("a".repeat(64));
+        var agents = AgentConfigurationTestSupport.agents(registry);
+        var configured = new AgentKernelSpecFactory(agents, new AiToolConfigService(List.of(query), registry), models,
+                new AgentScopeV2Properties(), new ObjectMapper(), mcp, AgentConfigurationTestSupport.skills(agents));
+
+        var spec = configured.createRoot(request().setEnabledTools(List.of("get_script")), model, "查询剧本");
+
+        assertThat(spec.toolWhitelist()).containsExactlyInAnyOrder("get_script", "read_script_content", "read_tool_result");
+        assertThat(spec.systemPrompt()).contains("nextOffset", "contentVersion", "hasMore=false");
     }
 
     @Test
@@ -116,6 +143,24 @@ class AgentKernelSpecFactoryTests {
                 request(), model, "root prompt", 42L);
 
         assertThat(first.key()).isNotEqualTo(second.key());
+    }
+
+    @Test
+    void selectingGenerationIncludesItsWaiterWithoutRequiringCanvasContext() {
+        ToolExecutor generator = mock(ToolExecutor.class);
+        when(generator.getToolName()).thenReturn("generate_image");
+        when(generator.isEnabled()).thenReturn(true);
+        when(generator.getParametersSchema()).thenReturn("{\"type\":\"object\",\"properties\":{}}");
+        var waiter = new CanvasGenerationAwaitTool(null, null, null, new CanvasJson(new ObjectMapper()));
+        var models = mock(AgentScopeModelFactory.class);
+        when(models.modelConfigFingerprint(model)).thenReturn("a".repeat(64));
+        var agents = AgentConfigurationTestSupport.agents(registry);
+        var configured = new AgentKernelSpecFactory(agents, new AiToolConfigService(List.of(generator, waiter), registry), models,
+                new AgentScopeV2Properties(), new ObjectMapper(), mcp, AgentConfigurationTestSupport.skills(agents));
+
+        var spec = configured.createRoot(request().setEnabledTools(List.of("generate_image")), model, "生成图片");
+
+        assertThat(spec.toolWhitelist()).containsExactlyInAnyOrder("generate_image", "await_generation_task", "read_tool_result");
     }
 
     @Test
@@ -138,8 +183,36 @@ class AgentKernelSpecFactoryTests {
                 model,
                 "root prompt");
 
-        assertThat(spec.toolWhitelist()).containsExactly("inspect_media");
-        assertThat(spec.toolManifest()).containsExactly(inspect);
+        assertThat(spec.toolWhitelist()).containsExactlyInAnyOrder("inspect_media", "read_tool_result");
+        assertThat(spec.toolManifest()).contains(inspect).hasSize(2);
+    }
+
+    @Test
+    void framePromptOnlyRunCannotGenerateImagesAfterDelegationOrRestore() {
+        ToolExecutor generator = mock(ToolExecutor.class);
+        when(generator.getToolName()).thenReturn("generate_image");
+        when(generator.isEnabled()).thenReturn(true);
+        when(generator.getParametersSchema()).thenReturn("{\"type\":\"object\",\"properties\":{}}");
+        ToolExecutor update = mock(ToolExecutor.class);
+        when(update.getToolName()).thenReturn("update_storyboard_item_frame");
+        when(update.isEnabled()).thenReturn(true);
+        when(update.getParametersSchema()).thenReturn("{\"type\":\"object\",\"properties\":{}}");
+        var models = mock(AgentScopeModelFactory.class);
+        when(models.modelConfigFingerprint(model)).thenReturn("a".repeat(64));
+        var agents = AgentConfigurationTestSupport.agents(registry);
+        var configured = new AgentKernelSpecFactory(agents, new AiToolConfigService(List.of(generator, update), registry),
+                models, new AgentScopeV2Properties(), new ObjectMapper(), mcp, AgentConfigurationTestSupport.skills(agents));
+        var parent = configured.createRoot(request().setAgentType("storyboard_frame_gen")
+                .setContext(Map.of("promptOnly", true)), model, "仅优化首帧提示词");
+        assertThat(parent.toolWhitelist()).contains("generate_storyboard_frame").doesNotContain("generate_image");
+        var child = configured.createChild(parent, registry.getByType("storyboard_frame_gen").getSubAgentTools().getFirst(),
+                new ProjectContext(7L), Map.of("message", "只优化提示词", "promptOnly", false));
+        assertThat(child.promptVariables()).containsEntry("promptOnly", "true");
+        assertThat(child.toolWhitelist()).contains("update_storyboard_item_frame")
+                .doesNotContain("generate_image", "await_generation_task", "generate_video");
+        var snapshot = new CanonicalAgentKernelSnapshotBuilder().build(child);
+        var restored = configured.restore(snapshot.payload(), model, "a".repeat(64));
+        assertThat(restored.toolWhitelist()).isEqualTo(child.toolWhitelist());
     }
 
     @Test
@@ -299,13 +372,14 @@ class AgentKernelSpecFactoryTests {
         when(tool.isConcurrencySafe()).thenReturn(true);
         AgentScopeModelFactory models = mock(AgentScopeModelFactory.class);
         when(models.modelConfigFingerprint(model)).thenReturn("a".repeat(64));
+        AiAgentService agents = AgentConfigurationTestSupport.agents(registry);
         AgentKernelSpecFactory toolFactory = new AgentKernelSpecFactory(
-                new AiAgentService(registry),
+                agents,
                 new AiToolConfigService(List.of(tool), registry),
                 models,
                 new AgentScopeV2Properties(),
                 new ObjectMapper(),
-                mcp);
+                mcp, AgentConfigurationTestSupport.skills(agents));
         AgentKernelSpec original = toolFactory.createRoot(
                 request().setEnabledTools(List.of("read_script")),
                 model,
@@ -314,9 +388,18 @@ class AgentKernelSpecFactoryTests {
 
         AgentKernelSpec restored = toolFactory.restore(payload, model, "b".repeat(64));
 
-        assertThat(restored.toolWhitelist()).containsExactly("read_script");
+        assertThat(restored.toolWhitelist()).containsExactlyInAnyOrder("read_script", "read_tool_result");
         assertThat(restored.toolManifest()).containsExactlyElementsOf(original.toolManifest());
         assertThat(restored.key().modelConfigFingerprint()).isEqualTo("b".repeat(64));
+
+        var mapper = new ObjectMapper();
+        ObjectNode oldContract = mapper.valueToTree(payload);
+        for (var entry : oldContract.withArray("tools")) {
+            ((ObjectNode) entry).put("implementationVersion", "afv-tools-v2");
+        }
+        var oldPayload = mapper.convertValue(oldContract, AgentKernelSnapshotPayload.class);
+        assertThatThrownBy(() -> toolFactory.restore(oldPayload, model, "b".repeat(64)))
+                .hasMessageContaining("工具协议已更新", "重新发起任务");
 
         when(tool.isReadOnly()).thenReturn(false);
         assertThatThrownBy(() -> toolFactory.restore(payload, model, "b".repeat(64)))
