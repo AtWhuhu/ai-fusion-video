@@ -18,6 +18,7 @@ import {
   ImagePlus,
   Video,
   Sparkles,
+  CloudCog,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -103,6 +104,7 @@ export function SidebarNav({
       { key: "profile", label: "个人设置", icon: Users, href: "/settings/profile", iconColor: "text-blue-400" },
       { key: "ai-models", label: "AI 配置", icon: Bot, href: "/settings/ai-models", iconColor: "text-purple-400" },
       { key: "agents", label: "智能体配置", icon: Bot, href: "/settings/agents", iconColor: "text-violet-400" },
+      { key: "easycolab", label: "EasyColab", icon: CloudCog, href: "/settings/easycolab", iconColor: "text-amber-400" },
       { key: "storage", label: "存储配置", icon: HardDrive, href: "/settings/storage", iconColor: "text-orange-400" },
       { key: "media", label: "媒体资产", icon: FolderOpen, href: "/settings/media", iconColor: "text-rose-400" },
     ]

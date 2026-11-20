@@ -77,6 +77,12 @@ video:
       timeout-seconds: ${VIDEO_COMPOSE_BGM_TIMEOUT_SECONDS:900}
 
 fusion:
+  easycolab:
+    # EasyColab 无头唤醒组件目录，需包含 colab_bridge.py、app.py、runtime_auth.py（Docker 镜像内置）
+    bridge-dir: ${EASYCOLAB_BRIDGE_DIR:/opt/easycolab}
+    python: ${EASYCOLAB_PYTHON:/opt/easycolab/venv/bin/python}
+    # Google OAuth 令牌与 Colab 会话状态目录（作为 HOME 传给 colab_bridge.py，需持久化）
+    home-dir: ${EASYCOLAB_HOME_DIR:./data/easycolab}
   agentscope:
     v2:
       cache:

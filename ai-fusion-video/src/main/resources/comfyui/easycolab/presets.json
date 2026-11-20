@@ -1,0 +1,273 @@
+[
+  {
+    "file": "01-wan22-i2v",
+    "code": "easycolab_wan22_i2v",
+    "name": "EasyColab Wan2.2 单图生视频",
+    "packId": "wan22_i2v_flf2v",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "129:93",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "negativePrompt": [
+        {
+          "nodeId": "129:89",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "97",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "129:86",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "108",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  },
+  {
+    "file": "02-wan22-flf2v",
+    "code": "easycolab_wan22_flf2v",
+    "name": "EasyColab Wan2.2 首尾帧过渡",
+    "packId": "wan22_i2v_flf2v",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "6",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "negativePrompt": [
+        {
+          "nodeId": "7",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "68",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "lastFrame": [
+        {
+          "nodeId": "62",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "57",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "61",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  },
+  {
+    "file": "03-minimax-h3-i2v",
+    "code": "easycolab_minimax_h3_i2v",
+    "name": "EasyColab MiniMax-H3 图生有声视频",
+    "packId": "minimax_h3_i2v_flf2v",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "105:104",
+          "inputName": "prompt",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "114",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "105:15",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "92",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  },
+  {
+    "file": "04-minimax-h3-flf2v",
+    "code": "easycolab_minimax_h3_flf2v",
+    "name": "EasyColab MiniMax-H3 首尾帧有声过渡",
+    "packId": "minimax_h3_i2v_flf2v",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "105:104",
+          "inputName": "prompt",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "114",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "lastFrame": [
+        {
+          "nodeId": "201",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "105:15",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "92",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  },
+  {
+    "file": "05-ltx23-flf2v",
+    "code": "easycolab_ltx23_flf2v",
+    "name": "EasyColab LTX-2.3 首尾帧运镜",
+    "packId": "ltx23_flf2v",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "129:128",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "negativePrompt": [
+        {
+          "nodeId": "129:112",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "31",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "lastFrame": [
+        {
+          "nodeId": "39",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "129:100",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "68",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  },
+  {
+    "file": "06-hunyuan15-i2v",
+    "code": "easycolab_hunyuan15_i2v",
+    "name": "EasyColab HunyuanVideo1.5 单图 1080P",
+    "packId": "hunyuan15_i2v_1080p",
+    "modelType": 3,
+    "inputBindings": {
+      "prompt": [
+        {
+          "nodeId": "44",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "negativePrompt": [
+        {
+          "nodeId": "93",
+          "inputName": "text",
+          "valueType": "string"
+        }
+      ],
+      "firstFrame": [
+        {
+          "nodeId": "80",
+          "inputName": "image",
+          "valueType": "uploaded_image"
+        }
+      ],
+      "seed": [
+        {
+          "nodeId": "127",
+          "inputName": "noise_seed",
+          "valueType": "integer"
+        }
+      ]
+    },
+    "outputBindings": [
+      {
+        "nodeId": "118",
+        "mediaType": "video",
+        "role": "primary"
+      }
+    ]
+  }
+]
