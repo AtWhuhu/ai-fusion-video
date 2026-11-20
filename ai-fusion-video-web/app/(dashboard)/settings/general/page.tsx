@@ -361,7 +361,7 @@ export default function GeneralSettingsPage() {
           ? {
               label: "镜像待发布",
               className: "border-cyan-500/30 bg-cyan-500/10 text-cyan-600",
-              summary: `最新 Release ${latestReleaseDisplay} 已发布，但 Docker 镜像尚未就绪。`,
+              summary: `最新版本 ${latestReleaseDisplay} 已打标签，但 Docker 镜像尚未就绪。`,
             }
         : {
             label: "已最新",
@@ -751,7 +751,7 @@ export default function GeneralSettingsPage() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                通过 GitHub Release 检查当前运行版本与最新发布版本，便于管理员决定是否升级部署。
+                对比当前运行版本与 AtWhuhu/ai-fusion-video 最新版本标签及 GHCR 镜像，便于管理员决定是否升级部署。
               </p>
             </div>
 
@@ -804,7 +804,7 @@ export default function GeneralSettingsPage() {
           {versionInfo?.latestReleaseVersion ? (
             <div className="mt-4 rounded-xl border border-border/20 bg-muted/10 p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-muted-foreground">GitHub 最新 Release</p>
+                <p className="text-xs text-muted-foreground">GitHub 最新版本标签</p>
                 <span
                   className={cn(
                     "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border",
@@ -875,18 +875,18 @@ export default function GeneralSettingsPage() {
               ) : null}
 
               <a
-                href={versionInfo?.latestReleaseUrl || "https://github.com/Stonewuu/ai-fusion-video/releases"}
+                href={versionInfo?.latestReleaseUrl || "https://github.com/AtWhuhu/ai-fusion-video/tags"}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 rounded-xl border border-border/30 bg-background/80 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/20"
               >
                 <ExternalLink className="h-4 w-4" />
-                查看最新 Release
+                查看最新版本
               </a>
 
               {versionInfo?.latestVersion ? (
                 <a
-                  href={versionInfo?.tagUrl || "https://github.com/Stonewuu/ai-fusion-video/releases"}
+                  href={versionInfo?.tagUrl || "https://github.com/AtWhuhu/ai-fusion-video/tags"}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-2 rounded-xl border border-border/30 bg-background/80 px-4 py-2 text-sm font-medium transition-colors hover:bg-muted/20"
