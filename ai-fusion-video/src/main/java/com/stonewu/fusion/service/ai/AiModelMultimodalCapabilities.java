@@ -35,8 +35,14 @@ public final class AiModelMultimodalCapabilities {
         if (model == null) {
             return;
         }
+        boolean acceptsInputs = List.of(1, 4).contains(model.getModelType());
         if (model.getMultimodalInputTypes() == null || model.getMultimodalInputTransports() == null) {
-            throw new BusinessException(400, "多模态输入类型和传输方式必须使用数组与对象结构");
+            if (acceptsInputs) {
+                throw new BusinessException(400, "多模态输入类型和传输方式不能为空");
+            }
+            // 图片、视频生成模型的素材输入由模型配置或 ComfyUI 工作流声明，不使用对话多模态字段。
+            model.setMultimodalInputTypes(List.of());
+            model.setMultimodalInputTransports(Map.of());
         }
 
         LinkedHashSet<String> normalizedTypes = new LinkedHashSet<>();
@@ -47,7 +53,7 @@ public final class AiModelMultimodalCapabilities {
             }
             normalizedTypes.add(type);
         }
-        if (!List.of(1, 4).contains(model.getModelType()) && !normalizedTypes.isEmpty()) {
+        if (!acceptsInputs && !normalizedTypes.isEmpty()) {
             throw new BusinessException(400, "当前模型类型不支持这些输入能力，请检查模型类型");
         }
 

@@ -22,6 +22,25 @@ class AiModelMultimodalCapabilitiesTests {
     }
 
     @Test
+    void generationModelsWithoutConversationInputsAreCreatedWithEmptyCapabilities() {
+        var video = AiModel.builder().modelType(3)
+                .multimodalInputTypes(null).multimodalInputTransports(null).build();
+        AiModelMultimodalCapabilities.normalizeModel(video);
+        assertThat(video.getMultimodalInputTypes()).isEmpty();
+        assertThat(video.getMultimodalInputTransports()).isEmpty();
+        assertThat(video.getSupportVision()).isFalse();
+    }
+
+    @Test
+    void textModelsStillRequireDeclaredInputCapabilities() {
+        var text = AiModel.builder().modelType(1)
+                .multimodalInputTypes(null).multimodalInputTransports(null).build();
+        assertThatThrownBy(() -> AiModelMultimodalCapabilities.normalizeModel(text))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("不能为空");
+    }
+
+    @Test
     void normalizesCanonicalTypesAndDerivesVisionCompatibilityFlag() {
         AiModel model = AiModel.builder()
                 .modelType(1)

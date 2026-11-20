@@ -28,9 +28,7 @@ public class AiModelCreateReqVO {
     private Integer maxConcurrency;
     private Boolean defaultModel;
     private Boolean supportVision;
-    @NotNull(message = "多模态输入类型不能为空")
     private List<String> multimodalInputTypes;
-    @NotNull(message = "多模态输入传输方式不能为空")
     private Map<String, List<String>> multimodalInputTransports;
     private Boolean supportReasoning;
     private List<String> reasoningEffortLevels;
