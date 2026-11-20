@@ -34,6 +34,12 @@ public class EasyColabController {
         return success(easyColabService.getState());
     }
 
+    @GetMapping("/admin-password")
+    @Operation(summary = "查询 EasyColab 控制台管理密码")
+    public CommonResult<String> adminPassword() {
+        return success(easyColabService.adminPassword());
+    }
+
     @GetMapping("/auth/status")
     @Operation(summary = "查询 Google Colab 授权状态")
     public CommonResult<JsonNode> authStatus() {

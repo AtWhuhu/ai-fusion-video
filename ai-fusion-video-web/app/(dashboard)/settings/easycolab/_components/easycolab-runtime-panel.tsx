@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Copy, Loader2, Power, Rocket } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Loader2, Power, Rocket } from "lucide-react";
 import { toast } from "sonner";
-import type { EasyColabGpu, EasyColabState } from "@/lib/api/easycolab";
+import { easyColabApi, type EasyColabGpu, type EasyColabState } from "@/lib/api/easycolab";
+import { toastApiError } from "@/lib/api/toast-api-error";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -143,8 +144,10 @@ function RuntimeSummary({ state }: { state: EasyColabState }) {
     <div className="flex flex-col gap-3 rounded-lg border border-border/20 bg-background/70 p-3">
       <CopyRow label="ComfyUI 地址" value={state.comfyUiUrl} />
       <CopyRow label="EasyColab 控制台" value={state.serviceUrl} />
+      <CopyRow label="管理用户名" value="easycolab" />
+      <PasswordRow />
       <p className={settingsTypography.metadata}>
-        管理用户名 easycolab，密码已写入渠道配置。新导入 {state.importedWorkflowCount ?? 0} 个预置视频工作流（草稿），
+        新导入 {state.importedWorkflowCount ?? 0} 个预置视频工作流（草稿），
         在 EasyColab 控制台安装对应预设包的模型后，到{" "}
         <Link href="/settings/ai-models" className="text-primary underline-offset-4 hover:underline">
           AI 配置
@@ -170,6 +173,65 @@ function CopyRow({ label, value }: { label: string; value: string | null }) {
       <Button variant="ghost" size="icon-sm" aria-label={`复制${label}`} onClick={copy}>
         <Copy />
       </Button>
+    </div>
+  );
+}
+
+function PasswordRow() {
+  const [password, setPassword] = useState<string | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const load = async () => {
+    if (password) {
+      return password;
+    }
+    setLoading(true);
+    try {
+      const value = await easyColabApi.adminPassword();
+      setPassword(value);
+      return value;
+    } finally {
+      setLoading(false);
+    }
+  };
+  const toggle = async () => {
+    try {
+      await load();
+      setVisible((current) => !current);
+    } catch (error) {
+      toastApiError(error, "读取管理密码失败");
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(await load());
+      toast.success("已复制管理密码");
+    } catch (error) {
+      toastApiError(error, "复制管理密码失败");
+    }
+  };
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className={settingsTypography.fieldLabel}>管理密码</div>
+        <div className="truncate font-mono text-xs text-foreground">
+          {visible && password ? password : "••••••••••••"}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={visible ? "隐藏管理密码" : "显示管理密码"}
+          disabled={loading}
+          onClick={toggle}
+        >
+          {visible ? <EyeOff /> : <Eye />}
+        </Button>
+        <Button variant="ghost" size="icon-sm" aria-label="复制管理密码" disabled={loading} onClick={copy}>
+          <Copy />
+        </Button>
+      </div>
     </div>
   );
 }

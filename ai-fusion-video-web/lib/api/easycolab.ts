@@ -50,6 +50,7 @@ export interface EasyColabWakeReq {
 
 export const easyColabApi = {
   state: () => http.get<never, EasyColabState>("/api/ai/easycolab/state"),
+  adminPassword: () => http.get<never, string>("/api/ai/easycolab/admin-password"),
   authStatus: () => http.get<never, EasyColabAuthStatus>("/api/ai/easycolab/auth/status"),
   authUrl: () => http.post<never, { ok: boolean; auth_url: string }>("/api/ai/easycolab/auth/url"),
   authCode: (code: string) =>
