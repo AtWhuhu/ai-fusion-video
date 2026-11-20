@@ -57,14 +57,12 @@ export function EasyColabRuntimePanel({ state, authorized, onWake, onRelease }: 
             </Button>
           )}
           {!running && (
-            <Button
-              disabled={!authorized || busy}
-              title={authorized ? undefined : "请先完成 Google 授权"}
-              onClick={() => onWake(gpu, Number(idle))}
-            >
-              {busy ? <Loader2 className="animate-spin" /> : <Rocket />}
-              {busy ? PHASE_LABELS[phase] : "一键唤醒"}
-            </Button>
+            <span title={authorized ? undefined : "请先完成 Google 授权"}>
+              <Button disabled={!authorized || busy} onClick={() => onWake(gpu, Number(idle))}>
+                {busy ? <Loader2 className="animate-spin" /> : <Rocket />}
+                {busy ? PHASE_LABELS[phase] : "一键唤醒"}
+              </Button>
+            </span>
           )}
         </div>
       </div>
