@@ -32,8 +32,16 @@ public final class GoogleFlowReverseApiSupport {
             "gemini-2.5-flash-image",
             "gemini-3.0-pro-image",
             "gemini-3.1-flash-image",
+            "gemini-3.1-flash-lite-image",
             "imagen-4.0-generate-preview"
     );
+
+    /**
+     * Flow2API 的 Omni 1.2 Flash 按时长与方向注册完整模型名：omni-1.2-flash-{秒}s-{landscape|portrait}。
+     */
+    private static final String OMNI_FLASH_MODEL = "omni-1.2-flash";
+    private static final int OMNI_FLASH_MIN_DURATION = 3;
+    private static final int OMNI_FLASH_MAX_DURATION = 15;
 
     private static final Map<String, String> IMAGE_ASPECT_SUFFIXES = Map.ofEntries(
             Map.entry("16:9", "landscape"),
@@ -148,7 +156,8 @@ public final class GoogleFlowReverseApiSupport {
                 || normalizedCode.startsWith("imagen-")) {
             return AiModelTypeEnum.IMAGE.getType();
         }
-        if (VIDEO_BASE_MODELS.containsKey(normalizedCode) || normalizedCode.startsWith("veo_")) {
+        if (VIDEO_BASE_MODELS.containsKey(normalizedCode) || normalizedCode.startsWith("veo_")
+                || normalizedCode.startsWith("omni")) {
             return AiModelTypeEnum.VIDEO.getType();
         }
         return null;
@@ -245,8 +254,22 @@ public final class GoogleFlowReverseApiSupport {
 
         validateVideoSelection(config, aspectRatio, resolution, imageCount, modelCode);
 
-        return new ResolvedVideoRequest(resolveVideoModelCode(modelCode, aspectRatio, resolution), aspectRatio,
-                resolution, imageCount);
+        String actualModelCode = OMNI_FLASH_MODEL.equals(modelCode)
+                ? resolveOmniFlashModelCode(aspectRatio, resolution, task.getDuration())
+                : resolveVideoModelCode(modelCode, aspectRatio, resolution);
+        return new ResolvedVideoRequest(actualModelCode, aspectRatio, resolution, imageCount);
+    }
+
+    public static String resolveOmniFlashModelCode(String aspectRatio, String resolution, int duration) {
+        if (StrUtil.isNotBlank(resolution)) {
+            throw new BusinessException("模型 " + OMNI_FLASH_MODEL + " 不支持 " + resolution + " 分辨率");
+        }
+        if (duration < OMNI_FLASH_MIN_DURATION || duration > OMNI_FLASH_MAX_DURATION) {
+            throw new BusinessException("模型 " + OMNI_FLASH_MODEL + " 仅支持 " + OMNI_FLASH_MIN_DURATION + " 至 "
+                    + OMNI_FLASH_MAX_DURATION + " 秒");
+        }
+        String orientation = "9:16".equals(aspectRatio) ? "portrait" : "landscape";
+        return OMNI_FLASH_MODEL + "-" + duration + "s-" + orientation;
     }
 
     public static String resolveVideoModelCode(String modelCode, String aspectRatio, String resolution) {

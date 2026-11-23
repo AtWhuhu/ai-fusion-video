@@ -1,5 +1,6 @@
 package com.stonewu.fusion.service.ai.googleflow;
 
+import com.stonewu.fusion.common.BusinessException;
 import com.stonewu.fusion.entity.ai.AiModel;
 import com.stonewu.fusion.entity.generation.ImageTask;
 import com.stonewu.fusion.entity.generation.VideoTask;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GoogleFlowReverseApiSupportTests {
 
@@ -14,6 +16,8 @@ class GoogleFlowReverseApiSupportTests {
         void shouldInferRemoteModelTypeForGoogleFlowAliases() {
                 assertEquals(2, GoogleFlowReverseApiSupport.inferRemoteModelType("gemini-3.0-pro-image"));
                 assertEquals(2, GoogleFlowReverseApiSupport.inferRemoteModelType("imagen-4.0-generate-preview"));
+                assertEquals(2, GoogleFlowReverseApiSupport.inferRemoteModelType("gemini-3.1-flash-lite-image"));
+                assertEquals(3, GoogleFlowReverseApiSupport.inferRemoteModelType("omni-1.2-flash"));
                 assertEquals(3, GoogleFlowReverseApiSupport.inferRemoteModelType("veo_3_1_r2v_fast"));
                 assertNull(GoogleFlowReverseApiSupport.inferRemoteModelType("unknown-model"));
         }
@@ -149,6 +153,44 @@ class GoogleFlowReverseApiSupportTests {
 
         assertEquals("veo_3_1_i2v_s_portrait_8s_1080p", request.actualModelCode());
         assertEquals("1080P", request.resolution());
+    }
+
+    @Test
+    void shouldResolveOmniFlashByDurationAndOrientation() {
+        AiModel model = AiModel.builder()
+                .code("omni-1.2-flash")
+                .config("""
+                        {
+                          "supportedResolutions": [],
+                          "supportedAspectRatios": ["16:9", "9:16"],
+                          "minImageInputs": 0,
+                          "maxImageInputs": 3
+                        }
+                        """)
+                .build();
+
+        VideoTask portrait = VideoTask.builder()
+                .ratio("9:16")
+                .duration(12)
+                .referenceImageUrls("[\"/media/images/a.png\", \"/media/images/b.png\"]")
+                .build();
+        VideoTask landscape = VideoTask.builder()
+                .ratio("16:9")
+                .duration(3)
+                .build();
+
+        assertEquals("omni-1.2-flash-12s-portrait",
+                GoogleFlowReverseApiSupport.resolveVideoRequest(model, portrait).actualModelCode());
+        assertEquals("omni-1.2-flash-3s-landscape",
+                GoogleFlowReverseApiSupport.resolveVideoRequest(model, landscape).actualModelCode());
+    }
+
+    @Test
+    void shouldRejectOmniFlashDurationOutsideFlowRange() {
+        assertThrows(BusinessException.class,
+                () -> GoogleFlowReverseApiSupport.resolveOmniFlashModelCode("16:9", null, 16));
+        assertThrows(BusinessException.class,
+                () -> GoogleFlowReverseApiSupport.resolveOmniFlashModelCode("16:9", "1080P", 8));
     }
 
     @Test

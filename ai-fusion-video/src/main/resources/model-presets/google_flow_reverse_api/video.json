@@ -1,5 +1,31 @@
 [
   {
+    "code": "omni-1.2-flash",
+    "name": "Omni 1.2 Flash",
+    "platform": "GoogleFlowReverseApi",
+    "modelType": 3,
+    "description": "Flow2API Omni 1.2 Flash，支持文生视频与 0-3 张参考图，3-15 秒按时长和横竖屏映射",
+    "config": {
+      "supportFirstFrame": false,
+      "supportLastFrame": false,
+      "supportReferenceImages": true,
+      "referenceImageInputFormats": ["data_uri"],
+      "supportReferenceVideos": false,
+      "supportReferenceAudios": false,
+      "minImageInputs": 0,
+      "maxImageInputs": 3,
+      "maxReferenceImages": 3,
+      "maxReferenceVideos": 0,
+      "maxReferenceAudios": 0,
+      "supportedResolutions": [],
+      "supportedAspectRatios": ["16:9", "9:16"],
+      "minDuration": 3,
+      "maxDuration": 15,
+      "supportedDurations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "defaultDuration": 8
+    }
+  },
+  {
     "code": "veo_3_1_t2v_fast",
     "name": "Veo 3.1 T2V Fast",
     "platform": "GoogleFlowReverseApi",
