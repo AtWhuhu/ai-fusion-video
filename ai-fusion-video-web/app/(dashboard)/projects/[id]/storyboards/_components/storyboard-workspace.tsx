@@ -1,12 +1,33 @@
 "use client";
 
-import { Film, Loader2, Sparkles, Menu, Info } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useCommandRequestKey } from "@/hooks/use-command-request-key";
+
+import {
+  Film,
+  Loader2,
+  Sparkles,
+  Menu,
+  Info,
+  PanelRightClose,
+  PanelRightOpen,
+} from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DialogContent } from "@/components/shared/dialog-content";
 import { Button } from "@/components/ui/button";
 import { VideoPreviewDialog } from "@/components/dashboard/video-preview-dialog";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
-import { toastApiError } from "@/lib/api/toast-api-error";
 import {
   storyboardApi,
   type StoryboardFrameType,
@@ -27,8 +48,7 @@ import { StoryboardSceneList } from "./storyboard-scene-list";
 
 /**
  * 计算某镜可参考的相邻镜头帧图（改造做连贯性镜头用）。
- * 顺序按全剧镜头顺序取前后各一个，默认都先给对方的**首帧**（常见的用法是拿上一镜的首图微调出本镜），
- * 有尾帧时弹窗里可以一键切换。只列出真的已经有图的帧，没图的邻居直接不出现。
+ * 顺序按全剧镜头顺序取前后各一个，只列出已经有图的帧。
  */
 function buildNeighborCandidates(
   items: StoryboardItem[],
@@ -72,7 +92,12 @@ function buildNeighborCandidates(
   return candidates;
 }
 
-export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeof useStoryboardWorkspace> }) {
+export function StoryboardWorkspace({
+  workspace,
+}: {
+  workspace: ReturnType<typeof useStoryboardWorkspace>;
+}) {
+  const requests = useCommandRequestKey();
 
   const {
     projectId,
@@ -90,7 +115,9 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     editingItem,
     setEditingItem,
     isSidebarCollapsed,
+    isDetailsCollapsed,
     handleSetSidebarCollapsed,
+    handleSetDetailsCollapsed,
     detailItemId,
     detailItem,
     handleCloseItemDetail,
@@ -133,7 +160,14 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
   const shouldReduceMotion = useReducedMotion();
   const sectionVariants: Variants = {
     hidden: { opacity: 0, y: shouldReduceMotion ? 0 : 8 },
-    visible: { opacity: 1, y: 0, transition: { duration: shouldReduceMotion ? 0 : 0.35, ease: [0.25, 0.46, 0.45, 0.94] } },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: shouldReduceMotion ? 0 : 0.35,
+        ease: [0.25, 0.46, 0.45, 0.94],
+      },
+    },
   };
   /** 全屏编辑弹窗头部显示的场次名 */
   const detailSceneLabel = (() => {
@@ -144,6 +178,7 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     if (!group) return undefined;
     return group.scene.sceneHeading || `场次 ${group.scene.sceneNumber || group.scene.id}`;
   })();
+
   // ========== 渲染 ==========
 
   if (loading) {
@@ -159,7 +194,9 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
     return (
       <div className="rounded-xl border border-destructive/30 bg-card p-6">
         <p className="font-medium">项目分镜工作区未初始化</p>
-        <p className="mt-1 text-sm text-muted-foreground">请检查项目创建流程后重试。</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          请检查项目创建流程后重试。
+        </p>
       </div>
     );
   }
@@ -167,103 +204,134 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
   // 有分镜：三栏布局
   return (
     <motion.div
-      variants={{ hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: shouldReduceMotion ? 0 : 0.04 } } }}
+      variants={{
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: { staggerChildren: shouldReduceMotion ? 0 : 0.04 },
+        },
+      }}
       initial={shouldReduceMotion ? false : "hidden"}
       animate="visible"
       className="flex min-h-0 w-full flex-1 rounded-xl border border-border/20 overflow-hidden bg-card/10"
     >
       {/* 左栏：分镜目录 */}
-      <motion.div variants={sectionVariants} className="shrink-0 hidden xl:block">
-      <StoryboardSidebar
-        projectId={projectId}
-        onRefresh={handleManualRefreshStoryboard}
-        isRefreshing={isRefreshingStoryboard}
-        storyboardId={storyboard.id}
-        storyboardVersion={storyboard.version}
-        selection={sidebarSelection}
-        activeSceneId={activeSceneId}
-        collapsed={isSidebarCollapsed}
-        onSelect={setSidebarSelection}
-        onCollapsedChange={handleSetSidebarCollapsed}
-        onInitialLoad={handleSidebarInitialLoad}
-        onDeleteEpisode={(episode) => handleDeleteEpisode(episode.id)}
-        onDeleteScene={(scene) => handleDeleteScene(scene.id, scene.episodeId)}
-        onReorderScenes={(episode, scenes) => handleReorderScenes(episode.id, scenes)}
-        scriptEpisodes={scriptEpisodes}
-        onBindScriptEpisode={(episode, scriptEpisodeId) => handleBindScriptEpisode(episode.id, scriptEpisodeId)}
-        onGenerateEpisodeStoryboard={handleGenerateEpisodeStoryboard}
-      />
-  
-      <Dialog open={showAiConfirmDialog} onOpenChange={setShowAiConfirmDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Sparkles className="h-4 w-4 text-violet-500" />
-              {sceneGroups.length > 0 ? "确认 AI 补全分镜？" : "确认 AI 生成分镜？"}
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground pt-1">
-              {sceneGroups.length > 0
-                ? "系统将基于当前剧本内容，智能分析并补全尚未生成分镜的场次与镜头。"
-                : "系统将基于当前剧本内容，自动分析剧本并生成全套分镜结构与镜头信息。"}
-            </DialogDescription>
-          </DialogHeader>
+      <motion.div
+        variants={sectionVariants}
+        className="shrink-0 hidden xl:block"
+      >
+        <StoryboardSidebar
+          projectId={projectId}
+          onRefresh={handleManualRefreshStoryboard}
+          isRefreshing={isRefreshingStoryboard}
+          storyboardId={storyboard.id}
+          storyboardVersion={storyboard.version}
+          selection={sidebarSelection}
+          activeSceneId={activeSceneId}
+          collapsed={isSidebarCollapsed}
+          onSelect={setSidebarSelection}
+          onCollapsedChange={handleSetSidebarCollapsed}
+          onInitialLoad={handleSidebarInitialLoad}
+          onDeleteEpisode={handleDeleteEpisode}
+          onDeleteScene={handleDeleteScene}
+          onReorderScenes={handleReorderScenes}
+          scriptEpisodes={scriptEpisodes}
+          onBindScriptEpisode={handleBindScriptEpisode}
+          onGenerateEpisodeStoryboard={handleGenerateEpisodeStoryboard}
+        />
 
-          <div className="rounded-xl border border-border/30 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
-            <p className="font-medium text-foreground">💡 提示</p>
-            <p>
-              生成任务启动后将在后台自动运行，您可在右上角任务中心实时查看进度。
-            </p>
-          </div>
+        <Dialog
+          open={showAiConfirmDialog}
+          onOpenChange={setShowAiConfirmDialog}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                {sceneGroups.length > 0
+                  ? "确认 AI 补全分镜？"
+                  : "确认 AI 生成分镜？"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground pt-1">
+                {sceneGroups.length > 0
+                  ? "系统将基于当前剧本内容，智能分析并补全尚未生成分镜的场次与镜头。"
+                  : "系统将基于当前剧本内容，自动分析剧本并生成全套分镜结构与镜头信息。"}
+              </DialogDescription>
+            </DialogHeader>
 
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowAiConfirmDialog(false)}>
-              取消
-            </Button>
-            <Button
-              variant="ai"
-              size="sm"
-              onClick={() => {
-                setShowAiConfirmDialog(false);
-                void handleAiStoryboard();
-              }}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {sceneGroups.length > 0 ? "开始 AI 补全" : "开始 AI 生成"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </motion.div>
+            <div className="rounded-xl border border-border/30 bg-muted/20 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">💡 提示</p>
+              <p>
+                生成任务启动后将在后台自动运行，您可在右上角任务中心实时查看进度。
+              </p>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAiConfirmDialog(false)}
+              >
+                取消
+              </Button>
+              <Button
+                variant="ai"
+                size="sm"
+                onClick={() => {
+                  setShowAiConfirmDialog(false);
+                  void handleAiStoryboard();
+                }}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {sceneGroups.length > 0 ? "开始 AI 补全" : "开始 AI 生成"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </motion.div>
 
       {/* 中栏：按场次分组的分镜内容 */}
-      <motion.div variants={sectionVariants} className="flex-1 flex flex-col min-w-0">
+      <motion.div
+        variants={sectionVariants}
+        className="flex-1 flex flex-col min-h-0 min-w-0"
+      >
         {/* 工具栏 */}
         <div className="px-4 md:px-5 py-3 border-b border-border/20 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2 max-w-[60%]">
             <Sheet open={leftSheetOpen} onOpenChange={setLeftSheetOpen}>
               <SheetTrigger
                 render={
-                  <Button variant="ghost" size="icon-sm" className="xl:hidden shrink-0" aria-label="打开分镜目录">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="xl:hidden shrink-0"
+                    aria-label="打开分镜目录"
+                  >
                     <Menu className="h-5 w-5" />
                   </Button>
                 }
               />
-              <SheetContent side="left" className="w-[300px] p-0 border-r-0 flex flex-col pt-12">
+              <SheetContent
+                side="left"
+                className="data-[side=left]:w-[calc(100%-2rem)] p-0 border-r-0 flex flex-col pt-12"
+              >
+                <SheetTitle className="sr-only">分镜目录</SheetTitle>
                 <StoryboardSidebar
+                  contained
                   projectId={projectId}
-         onRefresh={handleManualRefreshStoryboard}
-        isRefreshing={isRefreshingStoryboard}
-        storyboardId={storyboard.id}
-        storyboardVersion={storyboard.version}
+                  onRefresh={handleManualRefreshStoryboard}
+                  isRefreshing={isRefreshingStoryboard}
+                  storyboardId={storyboard.id}
+                  storyboardVersion={storyboard.version}
                   selection={sidebarSelection}
                   activeSceneId={activeSceneId}
                   onSelect={setSidebarSelection}
                   onInitialLoad={handleSidebarInitialLoad}
-                  onDeleteEpisode={(episode) => handleDeleteEpisode(episode.id)}
-                  onDeleteScene={(scene) => handleDeleteScene(scene.id, scene.episodeId)}
-                  onReorderScenes={(episode, scenes) => handleReorderScenes(episode.id, scenes)}
+                  onDeleteEpisode={handleDeleteEpisode}
+                  onDeleteScene={handleDeleteScene}
+                  onReorderScenes={handleReorderScenes}
                   scriptEpisodes={scriptEpisodes}
-                  onBindScriptEpisode={(episode, scriptEpisodeId) => handleBindScriptEpisode(episode.id, scriptEpisodeId)}
+                  onBindScriptEpisode={handleBindScriptEpisode}
                   onGenerateEpisodeStoryboard={handleGenerateEpisodeStoryboard}
                 />
               </SheetContent>
@@ -277,29 +345,59 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ai" size="sm" onClick={() => setShowAiConfirmDialog(true)}>
+            <Button
+              variant="ai"
+              size="sm"
+              onClick={() => setShowAiConfirmDialog(true)}
+            >
               <Sparkles className="h-4 w-4" />
               {sceneGroups.length > 0 ? "AI 补全" : "AI 生成"}
             </Button>
             {/* 合成本集视频 */}
             <StoryboardComposeActions
               episode={currentEpisode}
-              submitting={currentEpisodeId != null && submittingComposeEpisodeIds.includes(currentEpisodeId)}
-              running={currentEpisodeId != null && runningComposeEpisodeIds.includes(currentEpisodeId)}
+              submitting={
+                currentEpisodeId != null &&
+                submittingComposeEpisodeIds.includes(currentEpisodeId)
+              }
+              running={
+                currentEpisodeId != null &&
+                runningComposeEpisodeIds.includes(currentEpisodeId)
+              }
               onCompose={handleComposeEpisodeVideo}
               onPreview={setComposedPreviewUrl}
             />
 
             {/* 右侧边栏触发器 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden shrink-0 2xl:inline-flex"
+              aria-label={isDetailsCollapsed ? "展开详情栏" : "收起详情栏"}
+              title={isDetailsCollapsed ? "展开详情栏" : "收起详情栏"}
+              aria-expanded={!isDetailsCollapsed}
+              aria-controls="storyboard-details-panel"
+              onClick={() => handleSetDetailsCollapsed(!isDetailsCollapsed)}
+            >
+              {isDetailsCollapsed ? <PanelRightOpen /> : <PanelRightClose />}
+            </Button>
             <Sheet open={rightSheetOpen} onOpenChange={setRightSheetOpen}>
               <SheetTrigger
                 render={
-                  <Button variant="ghost" size="icon-sm" className="2xl:hidden shrink-0" aria-label="打开分镜详情">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="2xl:hidden shrink-0"
+                    aria-label="打开分镜详情"
+                  >
                     <Info className="h-5 w-5" />
                   </Button>
                 }
               />
-              <SheetContent side="right" className="w-[300px] p-0 border-l-0 flex flex-col pt-12 overflow-y-auto">
+              <SheetContent
+                side="right"
+                className="w-[300px] p-0 border-l-0 flex flex-col pt-12 overflow-y-auto"
+              >
                 <StoryboardRefPanel
                   storyboard={storyboard}
                   items={allItems}
@@ -316,16 +414,34 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
         <StoryboardSceneList workspace={workspace} />
       </motion.div>
 
-      {/* 右栏：场次级操作与概览（镜头详情已并入双击编辑弹窗） */}
-      <motion.div variants={sectionVariants} className="shrink-0 hidden 2xl:block">
-      <StoryboardRefPanel
-        storyboard={storyboard}
-        items={allItems}
-        activeSceneGroup={activeSceneGroup}
-        projectId={projectId}
-        project={project}
-        onBatchGenerateFrames={handleBatchGenerateSceneFrames}
-      />
+      {/* 右栏：引用信息 */}
+      <motion.div
+        id="storyboard-details-panel"
+        variants={sectionVariants}
+        aria-hidden={isDetailsCollapsed}
+        inert={isDetailsCollapsed}
+        className={
+          isDetailsCollapsed
+            ? "hidden h-full min-h-0 w-0 shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none 2xl:block"
+            : "hidden h-full min-h-0 w-72 shrink-0 overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none 2xl:block"
+        }
+      >
+        <div
+          className={
+            isDetailsCollapsed
+              ? "h-full w-72 translate-x-3 opacity-0 transition-[opacity,transform] duration-200 motion-reduce:transition-none"
+              : "h-full w-72 translate-x-0 opacity-100 transition-[opacity,transform] duration-200 motion-reduce:transition-none"
+          }
+        >
+          <StoryboardRefPanel
+            storyboard={storyboard}
+            items={allItems}
+            activeSceneGroup={activeSceneGroup}
+            projectId={projectId}
+            project={project}
+            onBatchGenerateFrames={handleBatchGenerateSceneFrames}
+          />
+        </div>
       </motion.div>
 
       <VideoPreviewDialog
@@ -378,26 +494,34 @@ export function StoryboardWorkspace({ workspace }: { workspace: ReturnType<typeo
           setEditingItem(null);
         }}
         onConfirm={async ({ characterIds, sceneAssetItemId, propIds }) => {
-          if (!editingItem) return;
+          if (!editingItem) {
+            return;
+          }
           try {
-            const updated = await storyboardApi.updateItemAssets(editingItem.id, {
+            const payload = {
               version: editingItem.version,
               characterIds,
               sceneAssetItemId,
               propIds,
-            });
+            };
+            const updated = await storyboardApi.updateItemAssets(
+              editingItem.id,
+              payload,
+              requests.forPayload({ itemId: editingItem.id, ...payload }),
+            );
+            requests.clear();
             // 局部更新场次数据状态
             setSceneGroups((prev) =>
               prev.map((g) => ({
                 ...g,
                 items: g.items.map((i) => (i.id === updated.id ? updated : i)),
-              }))
+              })),
             );
             setEditAssetsOpen(false);
             setEditingItem(null);
           } catch (err) {
             console.error("更新关联资产失败:", err);
-            toastApiError(err, "保存资产关联失败，请重试");
+            throw err;
           }
         }}
       />

@@ -1,5 +1,7 @@
 "use client";
 
+import { useCommandRequestKey } from "@/hooks/use-command-request-key";
+import { useResourceInvalidation } from "@/hooks/use-resource-invalidation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePipelineStore } from "@/lib/store/pipeline-store";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -11,10 +13,12 @@ import { useProject } from "../../project-context";
 import { useStoryboardGeneration } from "./use-storyboard-generation";
 import { useStoryboardInvalidation } from "./use-storyboard-invalidation";
 import { reconcileStoryboardGroups } from "../storyboard-data";
-import { SIDEBAR_COLLAPSED_STORAGE_KEY, type SidebarSelection, type SceneWithItems } from "../storyboard-types";
+import { DETAILS_COLLAPSED_STORAGE_KEY, SIDEBAR_COLLAPSED_STORAGE_KEY, type SidebarSelection, type SceneWithItems } from "../storyboard-types";
 
 export function useStoryboardWorkspace(projectId: number) {
+  const composeRequests = useCommandRequestKey();
   const { project } = useProject();
+  const requests = useCommandRequestKey();
   const { confirm } = useConfirm();
   const attachTaskStream = usePipelineStore((state) => state.attachTaskStream);
   const setNotificationOpen = usePipelineStore((state) => state.setNotificationOpen);
@@ -54,14 +58,19 @@ export function useStoryboardWorkspace(projectId: number) {
   useEffect(() => {
     loadProjectAssets();
   }, [loadProjectAssets]);
+  useResourceInvalidation("assets", loadProjectAssets);
 
-  // 视图状态：分镜页只有卡片视图，双击卡片打开全屏编辑弹窗
+  // 视图状态
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isDetailsCollapsed, setIsDetailsCollapsed] = useState(false);
 
   // 加载本地用户偏好
   useEffect(() => {
     setIsSidebarCollapsed(
       localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
+    );
+    setIsDetailsCollapsed(
+      localStorage.getItem(DETAILS_COLLAPSED_STORAGE_KEY) === "true"
     );
   }, []);
 
@@ -71,6 +80,10 @@ export function useStoryboardWorkspace(projectId: number) {
       SIDEBAR_COLLAPSED_STORAGE_KEY,
       collapsed ? "true" : "false"
     );
+  }, []);
+  const handleSetDetailsCollapsed = useCallback((collapsed: boolean) => {
+    setIsDetailsCollapsed(collapsed);
+    localStorage.setItem(DETAILS_COLLAPSED_STORAGE_KEY, String(collapsed));
   }, []);
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   /** 全屏编辑弹窗当前打开的分镜条目 id；null 表示关闭 */
@@ -143,7 +156,6 @@ export function useStoryboardWorkspace(projectId: number) {
   }, [currentEpisodeId]);
 
   const [composedPreviewUrl, setComposedPreviewUrl] = useState<string | null>(null);
-  const [runningComposeEpisodeIds, setRunningComposeEpisodeIds] = useState<number[]>([]);
   const [submittingComposeEpisodeIds, setSubmittingComposeEpisodeIds] = useState<number[]>([]);
 
   // 滚动定位 refs
@@ -154,6 +166,8 @@ export function useStoryboardWorkspace(projectId: number) {
   const [activeSceneId, setActiveSceneId] = useState<number | null>(null);
   // 标记是否由用户点击触发的滚动（此时不要通过 observer 覆盖）
   const isUserScrollRef = useRef(false);
+  const sceneScrollFrameRef = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(sceneScrollFrameRef.current), []);
 
   // ========== 派生数据 ==========
 
@@ -190,7 +204,6 @@ export function useStoryboardWorkspace(projectId: number) {
     const requestedSelection = sidebarSelectionRef.current;
 
     try {
-      void loadProjectAssets();
       void refreshCurrentEpisode();
 
       const loadedStoryboard = await storyboardApi.getByProject(projectId);
@@ -236,7 +249,7 @@ export function useStoryboardWorkspace(projectId: number) {
     } finally {
       if (request === sceneRequestRef.current) setLoadingScenes(false);
     }
-  }, [projectId, loadProjectAssets, refreshCurrentEpisode]);
+  }, [projectId, refreshCurrentEpisode]);
 
   // 加载分镜
   const loadStoryboard = useCallback(async () => {
@@ -273,20 +286,22 @@ export function useStoryboardWorkspace(projectId: number) {
   const handleManualRefreshStoryboard = useCallback(async () => {
     setIsRefreshingStoryboard(true);
     try {
-      await refreshStoryboardData();
+      await Promise.all([refreshStoryboardData(), loadProjectAssets()]);
     } finally {
       setIsRefreshingStoryboard(false);
     }
-  }, [refreshStoryboardData]);
+  }, [refreshStoryboardData, loadProjectAssets]);
 
   const handleBindScriptEpisode = useCallback(async (
-    storyboardEpisodeId: number,
+    episode: StoryboardEpisode,
     scriptEpisodeId: number
   ) => {
-    const updated = await storyboardApi.bindScriptEpisode(storyboardEpisodeId, (await storyboardApi.getEpisode(storyboardEpisodeId)).version, scriptEpisodeId);
+    const payload = { id: episode.id, version: episode.version, scriptEpisodeId };
+    const updated = await storyboardApi.bindScriptEpisode(episode.id, episode.version, scriptEpisodeId, requests.forPayload(payload));
+    requests.clear();
     await refreshStoryboardData();
     return updated;
-  }, [refreshStoryboardData]);
+  }, [refreshStoryboardData, requests]);
 
   
 
@@ -337,7 +352,13 @@ export function useStoryboardWorkspace(projectId: number) {
 
   // 当侧边栏选择变化时加载数据
   useEffect(() => {
-    if (!storyboardId) return;
+    cancelAnimationFrame(sceneScrollFrameRef.current);
+    isUserScrollRef.current = false;
+    if (!storyboardId) {
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
 
     if (sidebarSelection.type === "all") {
       setActiveSceneId(null);
@@ -360,33 +381,54 @@ export function useStoryboardWorkspace(projectId: number) {
         loadedEpisodeIdRef.current === sidebarSelection.episodeId &&
         sceneExists
       ) {
-        setTimeout(() => {
+        timer = setTimeout(() => {
           scrollToScene(sidebarSelection.sceneId!);
         }, 50);
       } else if (sidebarSelection.episodeId) {
         // 不同集 / 首次加载 / 新添加的场次：重新加载数据再滚动
         loadedEpisodeIdRef.current = sidebarSelection.episodeId;
         loadSceneGroups(sidebarSelection.episodeId).then(() => {
-          setTimeout(() => {
+          if (!active) {
+            return;
+          }
+          timer = setTimeout(() => {
             scrollToScene(sidebarSelection.sceneId!);
           }, 100);
         });
       }
     }
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      cancelAnimationFrame(sceneScrollFrameRef.current);
+      isUserScrollRef.current = false;
+    };
   }, [sidebarSelection, storyboardId, loadSceneGroups]);
 
-  // 滚动到指定场次
+  // 场次高度会随虚拟行测量变化，每帧使用当前目标位置，避免原生平滑滚动被尺寸修正打断。
   const scrollToScene = (sceneId: number) => {
+    const element = sceneRefs.current[sceneId];
+    const viewport = scrollContainerRef.current;
+    if (!element || !viewport) {
+      return;
+    }
+    cancelAnimationFrame(sceneScrollFrameRef.current);
     isUserScrollRef.current = true;
     setActiveSceneId(sceneId);
-    const el = sceneRefs.current[sceneId];
-    if (el && scrollContainerRef.current) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    // 滚动动画完成后恢复 observer
-    setTimeout(() => {
-      isUserScrollRef.current = false;
-    }, 600);
+    const startOffset = viewport.scrollTop;
+    const started = performance.now();
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 240;
+    const step = (now: number) => {
+      const progress = duration === 0 ? 1 : Math.min((now - started) / duration, 1);
+      const target = viewport.scrollTop + element.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 16;
+      viewport.scrollTop = startOffset + (target - startOffset) * (1 - (1 - progress) ** 3);
+      if (progress < 1) {
+        sceneScrollFrameRef.current = requestAnimationFrame(step);
+      } else {
+        isUserScrollRef.current = false;
+      }
+    };
+    sceneScrollFrameRef.current = requestAnimationFrame(step);
   };
 
   // ========== 滚动监听：更新当前可视场次 ==========
@@ -467,7 +509,7 @@ export function useStoryboardWorkspace(projectId: number) {
 
   // ========== 操作 ==========
 
-  const handleAddItem = async (sceneId: number, episodeId?: number) => {
+  const handleAddItem = async (sceneId: number) => {
     if (!storyboard) return;
     const group = sceneGroups.find((g) => g.scene.id === sceneId);
     const currentItems = group?.items || [];
@@ -477,13 +519,15 @@ export function useStoryboardWorkspace(projectId: number) {
       return;
     }
     try {
-      const newItem = await storyboardApi.createItem({
+      const payload = {
         storyboardSceneId: sceneId,
         parentVersion: group.scene.version,
         sceneAssetItemId,
         sortOrder: currentItems.length,
         shotNumber: String(currentItems.length + 1),
-      });
+      };
+      const newItem = await storyboardApi.createItem(payload, requests.forPayload(payload));
+      requests.clear();
       setSceneGroups((prev) =>
         prev.map((g) =>
           g.scene.id === sceneId
@@ -498,16 +542,18 @@ export function useStoryboardWorkspace(projectId: number) {
     }
   };
 
-  const handleDeleteEpisode = async (episodeId: number) => {
-    const ok = await confirm({ title: "删除分镜集", description: "确定要删除该分镜集吗？相关的分镜内容也将被一并删除，此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return false;
+  const handleDeleteEpisode = async (episode: StoryboardEpisode) => {
+    const episodeId = episode.id;
+    const ok = await confirm({ title: "删除分镜集", description: "确定要删除该分镜集吗？相关的分镜内容也将被一并删除，已有引用会显示失效，媒体文件会保留。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return false;
     try {
-      await storyboardApi.deleteEpisode(episodeId, (await storyboardApi.getEpisode(episodeId)).version);
+      await storyboardApi.deleteEpisode(episodeId, episode.version, requests.forPayload({ deleteEpisode: episodeId, version: episode.version }));
+      requests.clear();
       if (
         sidebarSelection.episodeId === episodeId
       ) {
         setSidebarSelection({ type: "all" });
       }
-      loadStoryboard();
+      await refreshStoryboardData();
       return true;
     } catch (err) {
       console.error("删除分集失败:", err);
@@ -516,14 +562,17 @@ export function useStoryboardWorkspace(projectId: number) {
     }
   };
 
-  const handleDeleteScene = async (sceneId: number, episodeId: number) => {
+  const handleDeleteScene = async (scene: StoryboardScene) => {
+    const sceneId = scene.id;
+    const episodeId = scene.episodeId;
     const ok = await confirm({ title: "删除分镜场次", description: "确定要删除该分镜场次吗？场次内的所有镜头将被一并删除。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return false;
     try {
-      await storyboardApi.deleteScene(sceneId, (await storyboardApi.getScene(sceneId)).version);
+      await storyboardApi.deleteScene(sceneId, scene.version, requests.forPayload({ deleteScene: sceneId, version: scene.version }));
+      requests.clear();
       if (sidebarSelection.sceneId === sceneId) {
         setSidebarSelection({ type: "episode", episodeId });
       }
-      loadSceneGroups(episodeId);
+      await refreshStoryboardData();
       return true;
     } catch (err) {
       console.error("删除分镜头报错", err);
@@ -532,26 +581,22 @@ export function useStoryboardWorkspace(projectId: number) {
     }
   };
 
-  const handleReorderScenes = async (episodeId: number, sortedScenes: import("@/lib/api/storyboard").StoryboardScene[]) => {
-    try {
-      const episode = await storyboardApi.getEpisode(episodeId);
-      await storyboardApi.reorderScenes(episodeId, episode.version, sortedScenes.map((scene) => scene.id));
-      if (
-        sidebarSelection.type === "all" ||
-        sidebarSelection.episodeId === episodeId
-      ) {
-        loadSceneGroups(sidebarSelection.type === "all" ? undefined : episodeId);
-      }
-    } catch (err) {
-      console.error("更新排序失败", err);
-      throw err;
-    }
+  const handleReorderScenes = async (episode: StoryboardEpisode, sortedScenes: StoryboardScene[]) => {
+    const ids = sortedScenes.map(scene => scene.id);
+    const payload = { reorderScenes: episode.id, version: episode.version, ids };
+    await storyboardApi.reorderScenes(episode.id, episode.version, ids, requests.forPayload(payload));
+    requests.clear();
+    await refreshStoryboardData();
   };
 
   const handleDeleteItem = async (itemId: number) => {
-    const ok = await confirm({ title: "删除镜头", description: "确定要删除该镜头吗？此操作无法撤销。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
+    const item = sceneGroups.flatMap(group => group.items).find(candidate => candidate.id === itemId);
+    if (!item) return;
+    const ok = await confirm({ title: "删除镜头", description: "确定要删除该镜头吗？已有引用会显示失效，媒体文件会保留。", variant: "destructive", confirmText: "确定删除" }); if (!ok) return;
     try {
-      await storyboardApi.deleteItem(itemId, (await storyboardApi.getItem(itemId)).version);
+      await storyboardApi.deleteItem(itemId, item.version, requests.forPayload({ deleteItem: itemId, version: item.version }));
+      requests.clear();
+      await refreshStoryboardData();
       setSceneGroups((prev) =>
         prev.map((g) => ({
           ...g,
@@ -568,7 +613,7 @@ export function useStoryboardWorkspace(projectId: number) {
   };
 
   const handleUpdateItemField = async (
-    itemId: number,
+    itemOrId: StoryboardItem | number,
     field: string,
     value: string | number | null
   ) => {
@@ -577,14 +622,28 @@ export function useStoryboardWorkspace(projectId: number) {
       const updated =
         field === "cameraAnchorId"
           ? await storyboardApi.updateItemCameraAnchor(
-              itemId,
+              typeof itemOrId === "number" ? itemOrId : itemOrId.id,
               typeof value === "string" && value.trim() ? value.trim() : null
             )
-          : await storyboardApi.updateItem({
-              id: itemId,
-              version: (await storyboardApi.getItem(itemId)).version,
-              [field]: field === "duration" ? (value ? Number(value) : null) : value,
-            });
+          : await (async () => {
+              const item =
+                typeof itemOrId === "number"
+                  ? await storyboardApi.getItem(itemOrId)
+                  : itemOrId;
+              const payload = {
+                id: item.id,
+                version: item.version,
+                [field]:
+                  field === "duration"
+                    ? value === "" || value === null
+                      ? null
+                      : Number(value)
+                    : value,
+              };
+              const result = await storyboardApi.updateItem(payload, requests.forPayload(payload));
+              requests.clear();
+              return result;
+            })();
       setSceneGroups((prev) =>
         prev.map((g) => ({
           ...g,
@@ -633,21 +692,28 @@ export function useStoryboardWorkspace(projectId: number) {
 
   /** 手动更新镜头首尾帧 */
   const handleUpdateItemFrame = useCallback(
-    async (itemId: number, frameType: StoryboardFrameType, imageUrl: string | null) => {
+    async (itemOrId: StoryboardItem | number, frameType: StoryboardFrameType, imageUrl: string | null) => {
       try {
-        const updated = await storyboardApi.updateFrame(itemId, {
-          version: (await storyboardApi.getItem(itemId)).version,
+        const item =
+          typeof itemOrId === "number"
+            ? await storyboardApi.getItem(itemOrId)
+            : itemOrId;
+        const payload = {
+          version: item.version,
           frameType,
           imageUrl,
           prompt: null,
-        });
+        };
+        const updated = await storyboardApi.updateFrame(item.id, payload, requests.forPayload({ itemId: item.id, ...payload }));
+        requests.clear();
         updateItemInSceneGroups(updated);
+        await refreshStoryboardData();
       } catch (err) {
         console.error("更新镜头首尾帧失败:", err);
         throw err;
       }
     },
-    [updateItemInSceneGroups]
+    [updateItemInSceneGroups, refreshStoryboardData, requests]
   );
 
   /** 提交镜头首尾帧 AI 生成任务 */
@@ -682,43 +748,28 @@ export function useStoryboardWorkspace(projectId: number) {
     setFrameDialogItemId(null);
   }, []);
 
-  // 拖拽排序
-  const handleReorderItems = async (
-    sceneId: number,
-    reorderedItems: import("@/lib/api/storyboard").StoryboardItem[]
-  ) => {
-    // 乐观更新本地状态
-    setSceneGroups((prev) =>
-      prev.map((g) =>
-        g.scene.id === sceneId ? { ...g, items: reorderedItems } : g
-      )
-    );
-    // 后台批量更新 sortOrder
+  // 业务顺序一次原子提交；失败时保留已确认的界面顺序。
+  const handleReorderItems = async (sceneId: number, reorderedItems: StoryboardItem[]) => {
+    const group = sceneGroups.find(entry => entry.scene.id === sceneId);
+    if (!group) return;
+    const ids = reorderedItems.map(item => item.id);
     try {
-      const scene = await storyboardApi.getScene(sceneId);
-      await storyboardApi.reorderItems(sceneId, scene.version, reorderedItems.map((item) => item.id));
-    } catch (err) {
-      console.error("更新排序失败:", err);
-      toastApiError(err, "更新排序失败");
-    }
+      const result = await storyboardApi.reorderItems(sceneId, group.scene.version, ids,
+        requests.forPayload({ reorderItems: sceneId, version: group.scene.version, ids }));
+      requests.clear();
+      setSceneGroups(current => current.map(entry => entry.scene.id === sceneId ? { scene: result.parent, items: result.children } : entry));
+      await refreshStoryboardData();
+    } catch (err) { toastApiError(err, "更新排序失败"); }
   };
-
-
 
   useEffect(() => {
     refreshCurrentEpisode();
   }, [refreshCurrentEpisode]);
 
   /** 提交本集合成视频任务 */
-  const handleComposeEpisodeVideo = useCallback(async () => {
+  const handleComposeEpisodeVideo = useCallback(async (includeBgm: boolean) => {
     if (!currentEpisodeId || !currentEpisode) return;
-    if (
-      submittingComposeEpisodeIds.includes(currentEpisodeId) ||
-      runningComposeEpisodeIds.includes(currentEpisodeId) ||
-      currentEpisode.composeStatus === 1
-    ) {
-      return;
-    }
+    if (submittingComposeEpisodeIds.includes(currentEpisodeId)) return;
 
     const epLabel = currentEpisode.title?.trim()
       || (currentEpisode.episodeNumber != null ? `第 ${currentEpisode.episodeNumber} 集` : `集 ${currentEpisode.id}`);
@@ -727,12 +778,10 @@ export function useStoryboardWorkspace(projectId: number) {
     );
     setNotificationOpen(true);
     try {
-      const taskId = await storyboardApi.composeEpisodeVideo(currentEpisodeId, currentEpisode.version, crypto.randomUUID(), true);
+      const taskId = await storyboardApi.composeEpisodeVideo(currentEpisodeId, currentEpisode.version, composeRequests.forPayload({ episodeId: currentEpisodeId, version: currentEpisode.version, includeBgm }), includeBgm);
+      composeRequests.clear();
       setSubmittingComposeEpisodeIds((prev) =>
         prev.filter((id) => id !== currentEpisodeId)
-      );
-      setRunningComposeEpisodeIds((prev) =>
-        prev.includes(currentEpisodeId) ? prev : [...prev, currentEpisodeId]
       );
 
       attachTaskStream({
@@ -741,9 +790,6 @@ export function useStoryboardWorkspace(projectId: number) {
         taskId,
         cancellable: false,
         onSettled: () => {
-          setRunningComposeEpisodeIds((prev) =>
-            prev.filter((id) => id !== currentEpisodeId)
-          );
           void refreshCurrentEpisode();
         },
       });
@@ -755,17 +801,14 @@ export function useStoryboardWorkspace(projectId: number) {
       setSubmittingComposeEpisodeIds((prev) =>
         prev.filter((id) => id !== currentEpisodeId)
       );
-      setRunningComposeEpisodeIds((prev) =>
-        prev.filter((id) => id !== currentEpisodeId)
-      );
     }
   }, [
     currentEpisodeId,
     currentEpisode,
     submittingComposeEpisodeIds,
-    runningComposeEpisodeIds,
     projectId,
     attachTaskStream,
+    composeRequests,
     setNotificationOpen,
     refreshCurrentEpisode,
   ]);
@@ -793,7 +836,9 @@ export function useStoryboardWorkspace(projectId: number) {
     editingItem,
     setEditingItem,
     isSidebarCollapsed,
+    isDetailsCollapsed,
     handleSetSidebarCollapsed,
+    handleSetDetailsCollapsed,
     selectedItemId,
     detailItemId,
     detailItem,
@@ -812,10 +857,11 @@ export function useStoryboardWorkspace(projectId: number) {
     currentEpisodeId,
     composedPreviewUrl,
     setComposedPreviewUrl,
-    runningComposeEpisodeIds,
+    runningComposeEpisodeIds: currentEpisode?.composeStatus === 1 ? [currentEpisode.id] : [],
     submittingComposeEpisodeIds,
     sceneRefs,
     scrollContainerRef,
+    isUserScrollRef,
     activeSceneId,
     setActiveSceneId,
     allItems,

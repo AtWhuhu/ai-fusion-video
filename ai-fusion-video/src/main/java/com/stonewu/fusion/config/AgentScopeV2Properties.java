@@ -1,5 +1,6 @@
 package com.stonewu.fusion.config;
 
+import com.stonewu.fusion.service.ai.run.BoundedAgentEventIngress;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
@@ -14,6 +15,27 @@ public class AgentScopeV2Properties {
     private Execution execution = new Execution();
     private Skills skills = new Skills();
     private Mcp mcp = new Mcp();
+    private int streamProtocolVersion = 2;
+    private Duration streamRetention = Duration.ofDays(1);
+
+    public Duration getStreamRetention() {
+        return streamRetention;
+    }
+
+    public void setStreamRetention(Duration streamRetention) {
+        this.streamRetention = requirePositive(streamRetention, "streamRetention");
+    }
+
+    public int getStreamProtocolVersion() {
+        return streamProtocolVersion;
+    }
+
+    public void setStreamProtocolVersion(int streamProtocolVersion) {
+        if (streamProtocolVersion != 1 && streamProtocolVersion != 2) {
+            throw new IllegalArgumentException("消息流协议版本必须为 1 或 2");
+        }
+        this.streamProtocolVersion = streamProtocolVersion;
+    }
 
     public Cache getCache() {
         return cache;
@@ -133,8 +155,8 @@ public class AgentScopeV2Properties {
     }
 
     public static final class Ingress {
-        private int maxEvents = 4096;
-        private long maxBytes = 8L * 1024L * 1024L;
+        private int maxEvents = BoundedAgentEventIngress.DEFAULT_MAX_EVENTS;
+        private long maxBytes = BoundedAgentEventIngress.DEFAULT_MAX_BYTES;
         private Duration coalesceDelay = Duration.ofMillis(50);
         private int coalesceMaxChars = 1024;
 

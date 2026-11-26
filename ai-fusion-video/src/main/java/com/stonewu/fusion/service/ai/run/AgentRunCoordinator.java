@@ -1,6 +1,7 @@
 package com.stonewu.fusion.service.ai.run;
 
 import com.stonewu.fusion.common.BusinessException;
+import com.stonewu.fusion.config.AgentScopeV2Properties;
 import com.stonewu.fusion.entity.ai.AgentConversation;
 import com.stonewu.fusion.entity.ai.AgentMessage;
 import com.stonewu.fusion.entity.ai.AgentRun;
@@ -10,6 +11,7 @@ import com.stonewu.fusion.service.ai.agentscope.runtime.AgentRuntimeSchedulers;
 import com.stonewu.fusion.service.ai.agentscope.state.AgentStateCleanupPolicyService;
 import com.stonewu.fusion.service.ai.run.kernel.AgentKernelSnapshot;
 import com.stonewu.fusion.service.ai.run.model.*;
+import com.stonewu.fusion.service.canvas.agent.CanvasAgentScopeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ import java.util.Objects;
 public class AgentRunCoordinator {
 
     private static final long INITIAL_OWNER_EPOCH = 1L;
+    private static final int MAX_ACTIVE_CHILDREN = 5;
 
     private final AgentRunRepository runRepository;
     private final AgentMessageAllocator messageAllocator;
@@ -41,6 +44,8 @@ public class AgentRunCoordinator {
     private final AgentRuntimeSchedulers schedulers;
     private final AgentStateCleanupPolicyService stateCleanupPolicy;
     private final List<AgentChildAdmissionPolicy> childPolicies;
+    private final AgentScopeV2Properties properties;
+    private final CanvasAgentScopeService canvasScopes;
 
     public Mono<StartedAgentRun> start(StartAgentRunCommand command) {
         Objects.requireNonNull(command, "command must not be null");
@@ -89,6 +94,8 @@ public class AgentRunCoordinator {
                 .canvasScopeJson(command.canvasScopeJson())
                 .projectId(conversation.getProjectId())
                 .agentType(command.agentType())
+                .streamProtocolVersion(properties.getStreamProtocolVersion())
+                .streamRunId(command.runId())
                 .kernelFingerprint(command.kernelSnapshot().fingerprint())
                 .agentDefinitionSnapshotJson(command.kernelSnapshot().snapshotJson())
                 .agentStateSessionId(stateSessionId)
@@ -122,6 +129,14 @@ public class AgentRunCoordinator {
         if (deadline.isAfter(parent.getDeadlineAt())) {
             throw new IllegalArgumentException("Child run deadline must not exceed parent deadline");
         }
+        AgentRun existing = runRepository.lockChild(command.parentRunId(), command.parentToolCallId());
+        if (existing != null) {
+            return existingChildAdmission(command, deadline, existing);
+        }
+        // 父任务行锁让多实例申请串行化；等待名额时退出本事务，不占用连接或锁。
+        if (runRepository.countActiveChildren(parent.getRunId()) >= MAX_ACTIVE_CHILDREN) {
+            throw new ChildRunCapacityUnavailableException();
+        }
         LocalDateTime leaseUntil = leaseUntil(databaseNow, command.ownerLease(), deadline);
         AgentRun child = AgentRun.builder()
                 .runId(command.childRunId())
@@ -131,6 +146,8 @@ public class AgentRunCoordinator {
                 .canvasScopeJson(parent.getCanvasScopeJson())
                 .projectId(parent.getProjectId())
                 .agentType(command.agentDefinitionStableKey())
+                .streamProtocolVersion(parent.getStreamProtocolVersion())
+                .streamRunId(childStreamRunId(parent, command.childRunId()))
                 .parentRunId(parent.getRunId())
                 .parentToolCallId(command.parentToolCallId())
                 .agentName(command.agentName())
@@ -159,19 +176,26 @@ public class AgentRunCoordinator {
                     AgentRunStatus.RUNNING,
                     true);
         } catch (DuplicateKeyException duplicate) {
-            return existingChildAdmission(command, deadline, duplicate);
+            AgentRun replay = runRepository.lockChild(command.parentRunId(), command.parentToolCallId());
+            if (replay == null) {
+                throw duplicate;
+            }
+            return existingChildAdmission(command, deadline, replay);
         }
+    }
+
+    private String childStreamRunId(AgentRun parent, String childRunId) {
+        if (parent.getStreamProtocolVersion() == 1) {
+            return childRunId;
+        }
+        var scope = canvasScopes.decode(parent.getCanvasScopeJson());
+        return scope != null && scope.nodeRunId() != null ? childRunId : parent.getStreamRunId();
     }
 
     private ChildRunAdmission existingChildAdmission(
             StartChildAgentRunCommand command,
             LocalDateTime persistedDeadline,
-            DuplicateKeyException duplicate) {
-        AgentRun existing = runRepository.lockChild(
-                command.parentRunId(), command.parentToolCallId());
-        if (existing == null) {
-            throw duplicate;
-        }
+            AgentRun existing) {
         if (!Objects.equals(existing.getAgentName(), command.agentName())
                 || !Objects.equals(existing.getAgentType(), command.agentDefinitionStableKey())
                 || !Objects.equals(existing.getKernelFingerprint(),
@@ -285,7 +309,8 @@ public class AgentRunCoordinator {
                 toInstant(run.getLeaseUntil()),
                 toInstant(run.getDeadlineAt()),
                 snapshot,
-                initialMessageOrder);
+                initialMessageOrder,
+                run.getStreamProtocolVersion());
     }
 
     private String rootStateSessionId(StartAgentRunCommand command) {
