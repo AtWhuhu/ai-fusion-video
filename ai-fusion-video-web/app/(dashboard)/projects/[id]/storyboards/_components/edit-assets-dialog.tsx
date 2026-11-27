@@ -195,7 +195,7 @@ export function EditItemAssetsDialog({
                         "group relative flex flex-col rounded-xl border overflow-hidden transition-all text-left bg-muted/5",
                         isChecked
                           ? "border-blue-500 ring-2 ring-blue-500/20 bg-blue-500/[0.02]"
-                          : "border-border/30 hover:border-border hover:bg-muted/15"
+                          : "border-input hover:border-ring hover:bg-muted/15"
                       )}
                     >
                       {/* Checkbox Overlay */}
@@ -274,7 +274,7 @@ export function EditItemAssetsDialog({
                         "group relative flex flex-col rounded-xl border overflow-hidden transition-all text-left bg-muted/5",
                         isChecked
                           ? "border-green-500 ring-2 ring-green-500/20 bg-green-500/[0.02]"
-                          : "border-border/30 hover:border-border hover:bg-muted/15"
+                          : "border-input hover:border-ring hover:bg-muted/15"
                       )}
                     >
                       {/* Radio Overlay */}
@@ -353,7 +353,7 @@ export function EditItemAssetsDialog({
                         "group relative flex flex-col rounded-xl border overflow-hidden transition-all text-left bg-muted/5",
                         isChecked
                           ? "border-amber-500 ring-2 ring-amber-500/20 bg-amber-500/[0.02]"
-                          : "border-border/30 hover:border-border hover:bg-muted/15"
+                          : "border-input hover:border-ring hover:bg-muted/15"
                       )}
                     >
                       {/* Checkbox Overlay */}
